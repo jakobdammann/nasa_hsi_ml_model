@@ -77,7 +77,7 @@ def test():
     x = torch.randn((1, 1, 256, 256))
     model = Generator(in_channels=1, out_channels=106, features=64)
     preds = model(x)
-    print(preds.shape)
+    print("\nShape of prediction:\n", preds.shape)
 
 
 if __name__ == "__main__":

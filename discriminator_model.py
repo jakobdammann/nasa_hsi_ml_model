@@ -5,6 +5,7 @@ import torch.nn as nn
 class CNNBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride):
         super(CNNBlock, self).__init__()
+
         self.conv = nn.Sequential(
             nn.Conv2d(
                 in_channels, out_channels, 4, stride, 1, bias=False, padding_mode="reflect"
@@ -20,6 +21,8 @@ class CNNBlock(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, in_channels=3, features=[64, 128, 256, 512]):
         super().__init__()
+
+        # conv to first feature amount
         self.initial = nn.Sequential(
             nn.Conv2d(
                 in_channels * 2,
@@ -32,6 +35,7 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(0.2),
         )
 
+        # more and more features
         layers = []
         in_channels = features[0]
         for feature in features[1:]:
@@ -40,6 +44,7 @@ class Discriminator(nn.Module):
             )
             in_channels = feature
 
+        # conv to just one feature, the probality of realness
         layers.append(
             nn.Conv2d(
                 in_channels, 1, kernel_size=4, stride=1, padding=1, padding_mode="reflect"
@@ -56,12 +61,12 @@ class Discriminator(nn.Module):
 
 
 def test():
-    x = torch.randn((1, 3, 256, 256))
-    y = torch.randn((1, 3, 256, 256))
-    model = Discriminator(in_channels=3)
+    x = torch.randn((1, 106, 256, 256))
+    y = torch.randn((1, 106, 256, 256))
+    model = Discriminator(in_channels=106)
     preds = model(x, y)
-    print(model)
-    print(preds.shape)
+    print("\nModel:\n", model)
+    print("\nShape of prediction:\n", preds.shape)
 
 
 if __name__ == "__main__":
