@@ -19,13 +19,13 @@ class CNNBlock(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, in_channels=3, features=[64, 128, 256, 512]):
+    def __init__(self, in_channels_x=1, in_channels_y=3, features=[64, 128, 256, 512]):
         super().__init__()
 
         # conv to first feature amount
         self.initial = nn.Sequential(
             nn.Conv2d(
-                in_channels * 2,
+                in_channels_x + in_channels_y,
                 features[0],
                 kernel_size=4,
                 stride=2,
@@ -61,9 +61,9 @@ class Discriminator(nn.Module):
 
 
 def test():
-    x = torch.randn((1, 106, 256, 256))
+    x = torch.randn((1, 1, 256, 256))
     y = torch.randn((1, 106, 256, 256))
-    model = Discriminator(in_channels=106)
+    model = Discriminator(in_channels_x=1, in_channels_y=106)
     preds = model(x, y)
     print("\nModel:\n", model)
     print("\nShape of prediction:\n", preds.shape)

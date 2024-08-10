@@ -56,7 +56,7 @@ def train_fn(
 
 
 def main():
-    disc = Discriminator(in_channels=106).to(config.DEVICE)
+    disc = Discriminator(in_channels_x=1, in_channels_y=106).to(config.DEVICE)
     gen = Generator(in_channels=1, out_channels=106, features=64).to(config.DEVICE)
     opt_disc = optim.Adam(disc.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999),)
     opt_gen = optim.Adam(gen.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
@@ -71,7 +71,7 @@ def main():
             config.CHECKPOINT_DISC, disc, opt_disc, config.LEARNING_RATE,
         )
 
-    train_dataset = Dataset(root_dir=config.TRAIN_DIR)
+    train_dataset = Dataset(root_dir_x=config.TRAIN_DIR_X, root_dir_y=config.TRAIN_DIR_Y)
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.BATCH_SIZE,
@@ -80,7 +80,7 @@ def main():
     )
     g_scaler = torch.cuda.amp.GradScaler()
     d_scaler = torch.cuda.amp.GradScaler()
-    val_dataset = Dataset(root_dir=config.VAL_DIR)
+    val_dataset = Dataset(root_dir_x=config.VAL_DIR_X, root_dir_y=config.VAL_DIR_Y)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
     for epoch in range(config.NUM_EPOCHS):

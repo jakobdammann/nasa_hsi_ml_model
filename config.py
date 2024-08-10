@@ -3,12 +3,14 @@ import torch
 #from albumentations.pytorch import ToTensorV2
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TRAIN_DIR = "data/train"
-VAL_DIR = "data/val"
+TRAIN_DIR_X = "images//thorlabs"
+TRAIN_DIR_Y = "images//cubert"
+VAL_DIR_X = "images//thorlabs"
+VAL_DIR_Y = "images//cubert"
 LEARNING_RATE = 2e-4
 BATCH_SIZE = 1
 NUM_WORKERS = 2
-IMAGE_SIZE = 256
+# IMAGE_SIZE = 256
 CHANNELS_IMG = 3
 L1_LAMBDA = 100
 LAMBDA_GP = 10
