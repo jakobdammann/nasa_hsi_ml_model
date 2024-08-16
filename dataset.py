@@ -26,8 +26,10 @@ class Dataset(Dataset):
         img_path_y = os.path.join(self.root_dir_y, img_file_y)
         image_y = np.array(tifffile.imread(img_path_y))
 
-        input_image = image_x.astype('float32')
+        input_image = np.array([image_x[3].astype('float32')])
+        print("input_image.shape:", input_image.shape)
         target_image = image_y.astype('float32')
+        print("target_image.shape:", target_image.shape)
 
         # augmentations commented out for now
 
