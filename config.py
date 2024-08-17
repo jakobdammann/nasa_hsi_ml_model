@@ -1,5 +1,7 @@
 import torch
-#import albumentations as A
+import albumentations as A
+from volumentations import volumentations as V
+import cv2
 #from albumentations.pytorch import ToTensorV2
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -19,6 +21,15 @@ LOAD_MODEL = False
 SAVE_MODEL = True
 CHECKPOINT_DISC = "disc.pth.tar"
 CHECKPOINT_GEN = "gen.pth.tar"
+
+
+# Augmentations
+
+augm_3d = V.Compose([V.Resize((106, 900, 900), always_apply=True),
+                      V.PadIfNeeded((106,1024,1024), value=0)
+                      ])
+
+augm_2d = A.PadIfNeeded(1024, 1024, border_mode=cv2.BORDER_CONSTANT, value=0)
 
 # both_transform = A.Compose(
 #     [A.Resize(width=256, height=256),], additional_targets={"image0": "image"},

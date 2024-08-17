@@ -27,8 +27,11 @@ class Dataset(Dataset):
         image_y = np.array(tifffile.imread(img_path_y))
 
         input_image = np.array([image_x[3].astype('float32')])
+        #input_image = config.augm_2d(image=input_image)["image"]
         print("input_image.shape:", input_image.shape)
+
         target_image = image_y.astype('float32')
+        #target_image = config.augm_3d(image=target_image)["image"]
         print("target_image.shape:", target_image.shape)
 
         # augmentations commented out for now
@@ -44,8 +47,8 @@ class Dataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = Dataset("images/thorlabs", "images/cubert")
-    loader = DataLoader(dataset, batch_size=5)
+    dataset = Dataset("images/first_dataset/thorlabs", "images/first_dataset/cubert")
+    loader = DataLoader(dataset, batch_size=1)
     for x, y in loader:
         print(x.shape)
         print(y.shape)
