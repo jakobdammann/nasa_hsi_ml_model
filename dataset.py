@@ -28,11 +28,11 @@ class Dataset(Dataset):
 
         input_image = np.array([image_x[3].astype('float32')])
         #input_image = config.augm_2d(image=input_image)["image"]
-        print("input_image.shape:", input_image.shape)
+        #print("input_image.shape:", input_image.shape)
 
         target_image = image_y.astype('float32')
         #target_image = config.augm_3d(image=target_image)["image"]
-        print("target_image.shape:", target_image.shape)
+        #print("target_image.shape:", target_image.shape)
 
         # augmentations commented out for now
 

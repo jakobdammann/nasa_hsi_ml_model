@@ -22,6 +22,32 @@ class Discriminator(nn.Module):
     def __init__(self, in_channels_x=1, in_channels_y=3, features=[64, 128, 256, 512]):
         super().__init__()
 
+        # downconv just for thorlabs image
+        self.prep_x = nn.Sequential(
+            nn.Conv2d(
+                in_channels=in_channels_x,
+                out_channels=int(in_channels_y/2),
+                kernel_size=4,
+                stride=1,
+                padding=1,
+                padding_mode="reflect",
+            ),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(
+                in_channels=int(in_channels_y/2),
+                out_channels=in_channels_y,
+                kernel_size=4,
+                stride=1,
+                padding=1,
+                padding_mode="reflect",
+            ),
+            nn.LeakyReLU(0.2),
+            nn.Upsample(size=(42,42), mode='bilinear'),
+        )
+
+        # therefore
+        in_channels_x = 106
+
         # conv to first feature amount
         self.initial = nn.Sequential(
             nn.Conv2d(
@@ -51,9 +77,10 @@ class Discriminator(nn.Module):
             ),
         )
 
-        self.model = nn.Sequential(*layers)
+        self.model = nn.Sequential(*layers, nn.Upsample((1,1), mode='bilinear'))
 
     def forward(self, x, y):
+        x = self.prep_x(x)
         x = torch.cat([x, y], dim=1)
         x = self.initial(x)
         x = self.model(x)

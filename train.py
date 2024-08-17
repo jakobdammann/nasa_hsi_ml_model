@@ -18,14 +18,19 @@ def train_fn(
 ):
     loop = tqdm(loader, leave=True)
 
+    print("before loop")
+
     for idx, (x, y) in enumerate(loop):
         x = x.to(config.DEVICE)
         y = y.to(config.DEVICE)
 
         # Train Discriminator
+        print("before disc")
         with torch.cuda.amp.autocast():
             y_fake = gen(x)
+            print("gen done")
             D_real = disc(x, y)
+            print("disc done")
             D_real_loss = bce(D_real, torch.ones_like(D_real))
             D_fake = disc(x, y_fake.detach())
             D_fake_loss = bce(D_fake, torch.zeros_like(D_fake))
@@ -37,6 +42,7 @@ def train_fn(
         d_scaler.update()
 
         # Train generator
+        print("before gen")
         with torch.cuda.amp.autocast():
             D_fake = disc(x, y_fake)
             G_fake_loss = bce(D_fake, torch.ones_like(D_fake))
