@@ -23,7 +23,7 @@ def train_fn(
         y = y.to(config.DEVICE)
 
         # Train Discriminator
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast('cuda'):
             y_fake = gen(x)
             D_real = disc(x, y)
             D_real_loss = bce(D_real, torch.ones_like(D_real))
@@ -37,7 +37,7 @@ def train_fn(
         d_scaler.update()
 
         # Train generator
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast('cuda'):
             D_fake = disc(x, y_fake)
             G_fake_loss = bce(D_fake, torch.ones_like(D_fake))
             L1 = l1_loss(y_fake, y) * config.L1_LAMBDA
@@ -78,8 +78,8 @@ def main():
         shuffle=True,
         num_workers=config.NUM_WORKERS,
     )
-    g_scaler = torch.cuda.amp.GradScaler()
-    d_scaler = torch.cuda.amp.GradScaler()
+    g_scaler = torch.amp.GradScaler('cuda')
+    d_scaler = torch.amp.GradScaler('cuda')
     val_dataset = Dataset(root_dir_x=config.VAL_DIR_X, root_dir_y=config.VAL_DIR_Y)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
