@@ -7,6 +7,7 @@ from dataset import Dataset
 from generator_model import Generator
 from torch.utils.data import DataLoader
 from tifffile import imwrite
+import numpy as np
 
 torch.backends.cudnn.benchmark = True
 
@@ -20,7 +21,7 @@ def main():
     load_checkpoint(config.CHECKPOINT_GEN, gen, opt_gen, config.LEARNING_RATE,)
 
     val_dataset = Dataset(root_dir_x=config.VAL_DIR_X, root_dir_y=config.VAL_DIR_Y)
-    val_loader = DataLoader(val_dataset, batch_size=n, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=n, shuffle=True)
 
     x, y = next(iter(val_loader))
     x, y = x.to(config.DEVICE), y.to(config.DEVICE)
@@ -28,14 +29,18 @@ def main():
     with torch.no_grad():
         y_fake = gen(x)
         y_fake = y_fake * 0.5 + 0.5  # remove normalization#
-        print(y_fake.shape, x.shape, y.shape)
+        y_fake = y_fake.numpy()
+        y = y.numpy()
+        x = x.numpy()
+        print(y_fake.shape, np.min(y_fake), np.max(y_fake))
+        print(y.shape, np.min(y), np.max(y))
+        print(x.shape, np.min(x), np.max(x))
         for i in range(n):
             save_image(y_fake[i], folder + f"/tl_gen_{i}.tif")
             save_image(x[i] * 0.5 + 0.5, folder + f"/tl_raw_{i}.tif")
             save_image(y[i] * 0.5 + 0.5, folder + f"/cb_raw_{i}.tif")
 
 def save_image(image, path):
-    image = image.numpy()
     imwrite(path, image)
 
 if __name__ == "__main__":

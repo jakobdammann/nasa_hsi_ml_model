@@ -74,6 +74,9 @@ def test():
     preds = model(x, y)
     print("\nModel:\n", model)
     print("\nShape of prediction:\n", preds.shape)
+    import numpy as np
+    print(np.max(preds.detach().numpy()), np.min(preds.detach().numpy()), np.std(preds.detach().numpy()))
+
 
 
 if __name__ == "__main__":

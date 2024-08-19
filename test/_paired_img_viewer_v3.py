@@ -49,7 +49,7 @@ def update_cb_plot(cb_file, channel):
     img = cb_image[channel, :, :]
     im_cb = ax_cb.imshow(img, cmap='viridis')
     wavelength = wavelengths[channel]
-    ax_cb.set_title(f"Cubert Image: {cb_file} (Channel {channel}/{cb_image.shape[0]-1}, {wavelength:.1f} nm)")
+    ax_cb.set_title(f"Generated Image: {cb_file} (Channel {channel}/{cb_image.shape[0]-1}, {wavelength:.1f} nm)")
     ax_cb.annotate(f"Channel Stats: \nSNR: {snr(img):.2f}, Min: {np.min(img):.2f}, Max: {np.max(img):.2f}, Avg: {np.mean(img):.2f}, Std: {np.std(img):.2f}", 
                    (-0.05,-0.18), xycoords='axes fraction')
     # create or update colorbars

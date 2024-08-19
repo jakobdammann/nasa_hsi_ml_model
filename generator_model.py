@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-
 class Block(nn.Module):
     def __init__(self, in_channels, out_channels, down=True, act="relu", use_dropout=False):
         super(Block, self).__init__()
@@ -96,6 +95,8 @@ def test():
     model = Generator(in_channels=1, out_channels=106, features=64)
     preds = model(x)
     print("\nShape of prediction:\n", preds.shape)
+    import numpy as np
+    print(np.max(preds.detach().numpy()), np.min(preds.detach().numpy()), np.std(preds.detach().numpy()))
 
 
 if __name__ == "__main__":
