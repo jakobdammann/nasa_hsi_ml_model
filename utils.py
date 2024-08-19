@@ -1,6 +1,7 @@
 import torch
 import config
 from torchvision.utils import save_image
+import numpy as np
 
 def save_some_examples(gen, val_loader, epoch, folder):
     x, y = next(iter(val_loader))
@@ -38,3 +39,6 @@ def load_checkpoint(checkpoint_file, model, optimizer, lr):
         param_group["lr"] = lr
 
 
+def print_info(tensor, name=''):
+    img = tensor.detach().numpy()
+    print(f"{name}, Shape: {tensor.shape[:]} Max: {np.max(img)}, Min: {np.min(img)}, Std: {np.std(img)}")

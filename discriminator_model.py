@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from utils import print_info
 
 
 class CNNBlock(nn.Module):
@@ -72,11 +73,9 @@ def test():
     y = torch.randn((1, 106, 42, 42))
     model = Discriminator(in_channels_x=1, in_channels_y=106)
     preds = model(x, y)
-    print("\nModel:\n", model)
+    #print("\nModel:\n", model)
     print("\nShape of prediction:\n", preds.shape)
-    import numpy as np
-    print(np.max(preds.detach().numpy()), np.min(preds.detach().numpy()), np.std(preds.detach().numpy()))
-
+    print_info(preds, "Preds")
 
 
 if __name__ == "__main__":
