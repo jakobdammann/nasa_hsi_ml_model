@@ -1,17 +1,18 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as func
+import torchvision.transforms.functional as tv_func
 from utils import print_info
 import time
 
 class Block(nn.Module):
-    def __init__(self, in_channels, out_channels, down=True, act="relu", use_dropout=False):
+    def __init__(self, in_channels, out_channels, down=True, act="relu", use_dropout=False, kernel=4, stride=2):
         super(Block, self).__init__()
 
         self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 4, 2, 1, bias=False, padding_mode="reflect")
+            nn.Conv2d(in_channels, out_channels, kernel, stride, 1, bias=False, padding_mode="reflect")
             if down
-            else nn.ConvTranspose2d(in_channels, out_channels, 4, 2, 1, bias=False),
+            else nn.ConvTranspose2d(in_channels, out_channels, kernel, stride, 1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU() if act == "relu" else nn.LeakyReLU(0.2),
         )
@@ -55,19 +56,78 @@ class Generator(nn.Module):
         self.up4_v2 = Block(features * 8 + features * 2, features * 4, down=False, act="relu", use_dropout=False)
         self.up5_v2 = Block(features * 4 + features * 1, features * 2, down=False, act="relu", use_dropout=False)
 
+        self.up1_v3 = Block(features * 8, features * 8, down=False, act="relu", use_dropout=True, stride=1)
+        self.up2_v3 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, stride=1)
+        self.up3_v3 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, stride=1)
+        self.up4_v3 = Block(features * 8 + features * 2, features * 4, down=False, act="relu", use_dropout=False, stride=1)
+        self.up6_v3 = Block(features * 2 + features * 1, features, down=False, act="relu", use_dropout=False, stride=1)
+
+
         self.final_up = nn.Sequential(
+            nn.Conv2d(features * 2, out_channels, kernel_size=4, stride=2, padding=1),
+            nn.Tanh(),
+        )
+
+        self.final_up_v3 = nn.Sequential(
             nn.Conv2d(features * 2, out_channels, kernel_size=4, stride=2, padding=1),
             nn.Tanh(),
         )
 
         self.downsample = nn.Upsample(size=(42,42), mode='bilinear')
         self.ds_and_conv = nn.Sequential(nn.Upsample(size=(42,42), mode='bilinear'),
+                                         nn.Conv2d(features * 2, out_channels, kernel_size=3, stride=1, padding=1),
+                                         nn.Tanh())
+        self.ds_and_conv_v3 = nn.Sequential(nn.Upsample(size=(48,48), mode='bilinear'),
                                          nn.Conv2d(features * 2 + 1, out_channels, kernel_size=3, stride=1, padding=1),
                                          nn.Tanh())
 
     def forward(self, x):
-        return self.forward_v2(x)
+        return self.forward_v3(x)
     
+    def forward_v3(self, x):
+        p = self.pad(x)
+        d1 = self.initial_down(p)
+        d2 = self.down1(d1)
+        d3 = self.down2(d2)
+        d4 = self.down3(d3)
+        d5 = self.down4(d4)
+        d6 = self.down5(d5)
+        bottleneck = self.bottleneck(d6)
+
+        u1 = self.up1(bottleneck)
+        print("u1:", u1.shape, "d6:", d6.shape)
+
+        d6_ip = func.interpolate(d6, u1.shape[2:], mode='bilinear')
+        u2 = self.up2_v3(torch.cat([u1, d6_ip], 1))
+        print("u2:", u2.shape, "d5:", d5.shape)
+
+        d5_ip = func.interpolate(d5, u2.shape[2:], mode='bilinear')
+        u3 = self.up3_v3(torch.cat([u2, d5_ip], 1))
+        print("u3:", u3.shape, "d4:", d4.shape)
+
+        d4_ip = func.interpolate(d4, u3.shape[2:], mode='bilinear')
+        u4 = self.up4_v3(torch.cat([u3, d4_ip], 1))
+        print("u4:", u4.shape, "d3:", d3.shape)
+
+        d3_ip = func.interpolate(d3, u4.shape[2:], mode='bilinear')
+        u5 = self.up5_v2(torch.cat([u4, d3_ip], 1))
+        print("u5:", u5.shape, "d2:", d2.shape)
+
+        d2_ip = func.interpolate(d2, u5.shape[2:], mode='bilinear')
+        u6 = self.up6_v3(torch.cat([u5, d2_ip], 1))
+        print("u6:", u6.shape, "d1:", d2.shape)
+
+        d1_ip = func.interpolate(d1, u5.shape[2:], mode='bilinear')
+        u7 = self.final_up_v3(torch.cat([u5, d1_ip], 1))
+        print("u6:", u6.shape, "p:", d1.shape)
+
+        p_ip = func.interpolate(p, u7.shape[2:], mode='bilinear')
+        ds = self.ds_and_conv_v3(torch.cat([u7, p_ip], 1))
+        print("ds:", ds.shape)
+
+        crop = tv_func.crop(ds, 3, 3, 42, 42)
+        return crop
+
     def forward_v2(self, x):
         p = self.pad(x)
         d1 = self.initial_down(p)
@@ -97,8 +157,7 @@ class Generator(nn.Module):
         u5 = self.up5_v2(torch.cat([u4, d1_ip], 1))
         #print("u5:", u5.shape)
 
-        x_ip = func.interpolate(p, u5.shape[2:], mode='bilinear')
-        ds = self.ds_and_conv(torch.cat([u5, x_ip], 1))
+        ds = self.ds_and_conv(u5)
         #print("ds:", ds.shape)
         return ds
 
