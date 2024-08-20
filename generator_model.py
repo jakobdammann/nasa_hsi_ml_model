@@ -59,7 +59,11 @@ class Generator(nn.Module):
             nn.Conv2d(features * 2, out_channels, kernel_size=4, stride=2, padding=1),
             nn.Tanh(),
         )
+
         self.downsample = nn.Upsample(size=(42,42), mode='bilinear')
+        self.ds_and_conv = nn.Sequential(nn.Upsample(size=(42,42), mode='bilinear'),
+                                         nn.Conv2d(features * 2 + 1, out_channels, kernel_size=3, stride=1, padding=1),
+                                         nn.Tanh())
 
     def forward(self, x):
         return self.forward_v2(x)
@@ -75,26 +79,27 @@ class Generator(nn.Module):
         bottleneck = self.bottleneck(d6)
 
         u1 = self.up1(bottleneck)
-        print("u1:", u1.shape, "d4:", d4.shape)
+        #print("u1:", u1.shape, "d4:", d4.shape)
 
         d4_ip = func.interpolate(d4, u1.shape[2:], mode='bilinear')
         u2 = self.up2(torch.cat([u1, d4_ip], 1))
-        print("u2:", u2.shape)
+        #print("u2:", u2.shape)
 
         d3_ip = func.interpolate(d3, u2.shape[2:], mode='bilinear')
         u3 = self.up3_v2(torch.cat([u2, d3_ip], 1))
-        print("u3:", u3.shape)
+        #print("u3:", u3.shape)
 
         d2_ip = func.interpolate(d2, u3.shape[2:], mode='bilinear')
         u4 = self.up4_v2(torch.cat([u3, d2_ip], 1))
-        print("u4:", u4.shape)
+        #print("u4:", u4.shape)
 
         d1_ip = func.interpolate(d1, u4.shape[2:], mode='bilinear')
         u5 = self.up5_v2(torch.cat([u4, d1_ip], 1))
-        print("u5:", u5.shape)
+        #print("u5:", u5.shape)
 
-        ds = self.downsample(u5)
-        print("ds:", ds.shape)
+        x_ip = func.interpolate(p, u5.shape[2:], mode='bilinear')
+        ds = self.ds_and_conv(torch.cat([u5, x_ip], 1))
+        #print("ds:", ds.shape)
         return ds
 
     def forward_v1(self, x):

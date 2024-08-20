@@ -9,14 +9,14 @@ from discriminator_model import Discriminator
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torchvision.utils import save_image
+import numpy as np
 
 torch.backends.cudnn.benchmark = True
 
 
-def train_fn(
-    disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_scaler,
-):
+def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_scaler):
     loop = tqdm(loader, leave=True)
+    running_loss = []
 
     for idx, (x, y) in enumerate(loop):
         x = x.to(config.DEVICE)
@@ -54,14 +54,17 @@ def train_fn(
                 D_fake=torch.sigmoid(D_fake).mean().item(),
             )
 
+        running_loss.append([D_loss.item(), G_loss.item()])
+    return running_loss
 
 def main():
     disc = Discriminator(in_channels_x=1, in_channels_y=106).to(config.DEVICE)
     gen = Generator(in_channels=1, out_channels=106, features=64).to(config.DEVICE)
-    opt_disc = optim.Adam(disc.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999),)
+    opt_disc = optim.Adam(disc.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
     opt_gen = optim.Adam(gen.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
     BCE = nn.BCEWithLogitsLoss()
     L1_LOSS = nn.L1Loss()
+    loss_values = []
 
     if config.LOAD_MODEL:
         load_checkpoint(
@@ -70,7 +73,7 @@ def main():
         load_checkpoint(
             config.CHECKPOINT_DISC, disc, opt_disc, config.LEARNING_RATE,
         )
-
+    
     train_dataset = Dataset(root_dir_x=config.TRAIN_DIR_X, root_dir_y=config.TRAIN_DIR_Y)
     train_loader = DataLoader(
         train_dataset,
@@ -84,15 +87,20 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
     for epoch in range(config.NUM_EPOCHS):
-        train_fn(
+        loss = train_fn(
             disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, g_scaler, d_scaler,
-        )
+            )
+        loss_values.append(loss)
 
         if config.SAVE_MODEL and epoch % 1 == 0:
             save_checkpoint(gen, opt_gen, filename=config.CHECKPOINT_GEN)
             save_checkpoint(disc, opt_disc, filename=config.CHECKPOINT_DISC)
 
         save_some_examples(gen, val_loader, epoch, folder="evaluation")
+    
+    np.save("loss//loss_values.npy", loss_values)
+
+    print("\ndone\n")
 
 
 if __name__ == "__main__":
