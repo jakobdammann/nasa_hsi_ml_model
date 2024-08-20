@@ -76,7 +76,7 @@ class Generator(nn.Module):
             nn.Tanh(),
         )
         self.ds_and_conv_v3 = nn.Sequential(nn.Upsample(size=(48,48), mode='bilinear'),
-                                         nn.Conv2d(out_channels + 1, out_channels, kernel_size=3, stride=1, padding=1),
+                                         nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
                                          nn.Tanh())
 
     def forward(self, x):
@@ -117,10 +117,9 @@ class Generator(nn.Module):
 
         d1_ip = func.interpolate(d1, u6.shape[2:], mode='bilinear')
         u7 = self.final_up_v3(torch.cat([u6, d1_ip], 1))
-        print("u7:", u7.shape, "p:", p.shape)
+        print("u7:", u7.shape)
 
-        p_ip = func.interpolate(p, u7.shape[2:], mode='bilinear')
-        ds = self.ds_and_conv_v3(torch.cat([u7, p_ip], 1))
+        ds = self.ds_and_conv_v3(u7)
         print("ds:", ds.shape)
 
         crop = tv_func.crop(ds, 3, 3, 42, 42)
