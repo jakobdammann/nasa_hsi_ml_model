@@ -51,34 +51,32 @@ class Generator(nn.Module):
         self.up4 = Block(features * 8 * 2, features * 4, down=False, act="relu", use_dropout=False)
         self.up5 = Block(features * 4 * 2, features * 2, down=False, act="relu", use_dropout=False)
         self.up6 = Block(features * 2 * 2, features, down=False, act="relu", use_dropout=False)
-
-        self.up3_v2 = Block(features * 8 + features * 4, features * 8, down=False, act="relu", use_dropout=False)
-        self.up4_v2 = Block(features * 8 + features * 2, features * 4, down=False, act="relu", use_dropout=False)
-        self.up5_v2 = Block(features * 4 + features * 1, features * 2, down=False, act="relu", use_dropout=False)
-
-        self.up1_v3 = Block(features * 8, features * 8, down=False, act="relu", use_dropout=True, stride=1)
-        self.up2_v3 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, stride=1)
-        self.up3_v3 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, stride=1)
-        self.up4_v3 = Block(features * 8 + features * 2, features * 4, down=False, act="relu", use_dropout=False, stride=1)
-        self.up6_v3 = Block(features * 2 + features * 1, features, down=False, act="relu", use_dropout=False, stride=1)
-
-
         self.final_up = nn.Sequential(
             nn.Conv2d(features * 2, out_channels, kernel_size=4, stride=2, padding=1),
             nn.Tanh(),
         )
+        self.downsample = nn.Upsample(size=(42,42), mode='bilinear')
 
+        self.up3_v2 = Block(features * 8 + features * 4, features * 8, down=False, act="relu", use_dropout=False)
+        self.up4_v2 = Block(features * 8 + features * 2, features * 4, down=False, act="relu", use_dropout=False)
+        self.up5_v2 = Block(features * 4 + features * 1, features * 2, down=False, act="relu", use_dropout=False)
+        self.ds_and_conv = nn.Sequential(nn.Upsample(size=(42,42), mode='bilinear'),
+                                    nn.Conv2d(features * 2, out_channels, kernel_size=3, stride=1, padding=1),
+                                    nn.Tanh())
+
+
+        self.up1_v3 = Block(features * 8, features * 8, down=False, act="relu", use_dropout=True, kernel=3, stride=1)
+        self.up2_v3 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, kernel=3, stride=1)
+        self.up3_v3 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, kernel=4, stride=2)
+        self.up4_v3 = Block(features * 8 + features * 8, features * 4, down=False, act="relu", use_dropout=False, kernel=3, stride=1)
+        self.up5_v3 = Block(features * 4 + features * 4, features * 4, down=False, act="relu", use_dropout=False, kernel=4, stride=2)
+        self.up6_v3 = Block(features * 4 + features * 2, features * 2, down=False, act="relu", use_dropout=False, kernel=3, stride=1)
         self.final_up_v3 = nn.Sequential(
-            nn.Conv2d(features * 2, out_channels, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(features * 2 + features, out_channels, kernel_size=3, stride=1, padding=1),
             nn.Tanh(),
         )
-
-        self.downsample = nn.Upsample(size=(42,42), mode='bilinear')
-        self.ds_and_conv = nn.Sequential(nn.Upsample(size=(42,42), mode='bilinear'),
-                                         nn.Conv2d(features * 2, out_channels, kernel_size=3, stride=1, padding=1),
-                                         nn.Tanh())
         self.ds_and_conv_v3 = nn.Sequential(nn.Upsample(size=(48,48), mode='bilinear'),
-                                         nn.Conv2d(features * 2 + 1, out_channels, kernel_size=3, stride=1, padding=1),
+                                         nn.Conv2d(out_channels + 1, out_channels, kernel_size=3, stride=1, padding=1),
                                          nn.Tanh())
 
     def forward(self, x):
@@ -110,16 +108,16 @@ class Generator(nn.Module):
         print("u4:", u4.shape, "d3:", d3.shape)
 
         d3_ip = func.interpolate(d3, u4.shape[2:], mode='bilinear')
-        u5 = self.up5_v2(torch.cat([u4, d3_ip], 1))
+        u5 = self.up5_v3(torch.cat([u4, d3_ip], 1))
         print("u5:", u5.shape, "d2:", d2.shape)
 
         d2_ip = func.interpolate(d2, u5.shape[2:], mode='bilinear')
         u6 = self.up6_v3(torch.cat([u5, d2_ip], 1))
-        print("u6:", u6.shape, "d1:", d2.shape)
+        print("u6:", u6.shape, "d1:", d1.shape)
 
-        d1_ip = func.interpolate(d1, u5.shape[2:], mode='bilinear')
-        u7 = self.final_up_v3(torch.cat([u5, d1_ip], 1))
-        print("u6:", u6.shape, "p:", d1.shape)
+        d1_ip = func.interpolate(d1, u6.shape[2:], mode='bilinear')
+        u7 = self.final_up_v3(torch.cat([u6, d1_ip], 1))
+        print("u7:", u7.shape, "p:", p.shape)
 
         p_ip = func.interpolate(p, u7.shape[2:], mode='bilinear')
         ds = self.ds_and_conv_v3(torch.cat([u7, p_ip], 1))
