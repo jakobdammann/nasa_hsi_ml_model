@@ -72,10 +72,9 @@ class Generator(nn.Module):
         self.up5_v3 = Block(features * 4 + features * 4, features * 4, down=False, act="relu", use_dropout=False, kernel=4, stride=2)
         self.up6_v3 = Block(features * 4 + features * 2, features * 2, down=False, act="relu", use_dropout=False, kernel=3, stride=3, pad=0)
         self.final_up_v3 = nn.Sequential(
-            nn.Conv2d(features * 2 + features, out_channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(features * 2 + features, out_channels, kernel_size=3, stride=4, padding=0),
             nn.Tanh(),
         )
-        self.downsample_v3 = nn.Sequential(nn.Upsample(size=(48,48), mode='nearest'))
 
     def forward(self, x):
         return self.forward_v3(x)
@@ -111,10 +110,7 @@ class Generator(nn.Module):
         u7 = self.final_up_v3(torch.cat([u6, d1_ip], 1)) # 106x192x192
         #print("u7:", u7.shape)
 
-        ds = self.downsample_v3(u7) # 106x48x48
-        #print("ds:", ds.shape)
-
-        crop = tv_func.crop(ds, 3, 3, 42, 42) # 106x42x42
+        crop = tv_func.crop(u7, 3, 3, 42, 42) # 106x42x42
         return crop
 
     def forward_v2(self, x):
