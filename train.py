@@ -48,7 +48,7 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_sca
         g_scaler.step(opt_gen)
         g_scaler.update()
 
-        if idx % 10 == 0:
+        if idx % 30 == 0:
             loop.set_postfix(
                 D_real=torch.sigmoid(D_real).mean().item(),
                 D_fake=torch.sigmoid(D_fake).mean().item(),
@@ -58,6 +58,8 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_sca
     return running_loss
 
 def main():
+    print("\nTraining...\n")
+
     disc = Discriminator(in_channels_x=1, in_channels_y=106).to(config.DEVICE)
     gen = Generator(in_channels=1, out_channels=106, features=64).to(config.DEVICE)
     opt_disc = optim.Adam(disc.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
@@ -87,6 +89,8 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
     for epoch in range(config.NUM_EPOCHS):
+        print(f"Epoch: {epoch}")
+
         loss = train_fn(
             disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, g_scaler, d_scaler,
             )
@@ -100,7 +104,7 @@ def main():
     
     np.save("loss//loss_values.npy", loss_values)
 
-    print("\ndone\n")
+    print("\nTraining done.\n")
 
 
 if __name__ == "__main__":

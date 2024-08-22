@@ -40,5 +40,8 @@ def load_checkpoint(checkpoint_file, model, optimizer, lr):
 
 
 def print_info(tensor, name=''):
-    img = tensor.detach().numpy()
-    print(f"{name}, Shape: {tensor.shape[:]} Max: {np.max(img)}, Min: {np.min(img)}, Std: {np.std(img)}")
+    try:
+        img = tensor.detach().numpy()
+    except:
+        img=tensor
+    print(f"{name}, Shape: {tensor.shape[:]} Max: {np.max(img):.2f}, Min: {np.min(img):.2f}, Std: {np.std(img):.2f}")

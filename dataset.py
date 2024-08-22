@@ -5,6 +5,7 @@ from PIL import Image
 import tifffile
 from torch.utils.data import Dataset, DataLoader
 from torchvision.utils import save_image
+import utils
 
 
 class Dataset(Dataset):
@@ -29,18 +30,18 @@ class Dataset(Dataset):
         input_image = np.array([image_x[3].astype('float32')])
         min = np.min(input_image)
         max = np.max(input_image)
-        input_image = input_image - min / (max - min + 1e-12)
+        input_image = (input_image - min) / (max - min + 1e-12)
         input_image = 2 * input_image - 1
-        #print("input_image.shape:", input_image.shape)
+        #utils.print_info(input_image, 'input_image')
         #input_image = config.augm_2d(image=input_image)["image"]
         #print("input_image.shape:", input_image.shape)
 
         target_image = image_y.astype('float32')
         min = np.min(target_image)
         max = np.max(target_image)
-        target_image = target_image - min / (max - min + 1e-12)
+        target_image = (target_image - min) / (max - min + 1e-12)
         target_image = 2 * target_image - 1
-        #print("target_image.shape:", target_image.shape)
+        #utils.print_info(target_image, 'target_info')
         #target_image = config.augm_3d(image=target_image)["image"]
         #print("target_image.shape:", target_image.shape)
 
