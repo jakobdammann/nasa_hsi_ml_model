@@ -15,7 +15,7 @@ torch.backends.cudnn.benchmark = True
 
 
 def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_scaler):
-    loop = tqdm(loader, leave=True)
+    loop = tqdm(loader, leave=True, mininterval=3)
     running_loss = []
 
     for idx, (x, y) in enumerate(loop):
@@ -48,7 +48,7 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_sca
         g_scaler.step(opt_gen)
         g_scaler.update()
 
-        if idx % 30 == 0:
+        if idx % 10 == 0:
             loop.set_postfix(
                 D_real=torch.sigmoid(D_real).mean().item(),
                 D_fake=torch.sigmoid(D_fake).mean().item(),
