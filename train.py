@@ -2,19 +2,21 @@ import torch
 from utils import save_checkpoint, load_checkpoint, save_some_examples
 import torch.nn as nn
 import torch.optim as optim
+
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+import numpy as np
+import neptune
+
 import config
 from dataset import Dataset
 from generator_model import Generator
 from discriminator_model import Discriminator
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-from torchvision.utils import save_image
-import numpy as np
 
 torch.backends.cudnn.benchmark = True
 
 
-def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_scaler):
+def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_scaler, run):
     loop = tqdm(loader, leave=True, mininterval=3)
     running_loss = []
 
@@ -53,6 +55,13 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_sca
                 D_real=torch.sigmoid(D_real).mean().item(),
                 D_fake=torch.sigmoid(D_fake).mean().item(),
             )
+        # neptune log
+        run["Gen Loss"].log(G_loss.item())
+        run["Dis Loss"].log(D_loss.item())
+        run["Dis real loss"].log(D_real_loss.item())
+        run["Dis fake loss"].log(D_fake_loss.item())
+        run['L1 Loss'].log(l1_loss.item())
+        run['Gen GAN Loss'].log(G_fake_loss.item())
 
         running_loss.append([D_loss.item(), G_loss.item()])
     return running_loss
@@ -60,6 +69,20 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_sca
 def main():
     print("\nTraining...\n")
 
+    # Neptune
+    run = neptune.init_run(project="menonlab/classification",
+                           capture_hardware_metrics=True,
+                           capture_stderr=True,
+                           capture_stdout=True,)
+    params = {'Epoch': config.NUM_EPOCHS,
+              'Batch Size': config.BATCH_SIZE,
+              'Optimizer': 'Adam',
+              'Metrics': ['Binary Cross Entropy', 'L1 Loss'],
+              'Activation': ['Leaky Relu', 'Relu', 'Tanh',],
+              'L1_lambda': config.L1_LAMBDA}
+    run['parameters'] = params
+
+    # Definition of Models and other stuff
     disc = Discriminator(in_channels_x=1, in_channels_y=106).to(config.DEVICE)
     gen = Generator(in_channels=1, out_channels=106, features=64).to(config.DEVICE)
     opt_disc = optim.Adam(disc.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
@@ -68,14 +91,12 @@ def main():
     L1_LOSS = nn.L1Loss()
     loss_values = []
 
+    # Load model
     if config.LOAD_MODEL:
-        load_checkpoint(
-            config.CHECKPOINT_GEN, gen, opt_gen, config.LEARNING_RATE,
-        )
-        load_checkpoint(
-            config.CHECKPOINT_DISC, disc, opt_disc, config.LEARNING_RATE,
-        )
+        load_checkpoint(config.CHECKPOINT_GEN, gen, opt_gen, config.LEARNING_RATE,)
+        load_checkpoint(config.CHECKPOINT_DISC, disc, opt_disc, config.LEARNING_RATE,)
     
+    # Load dataset
     train_dataset = Dataset(root_dir_x=config.TRAIN_DIR_X, root_dir_y=config.TRAIN_DIR_Y)
     train_loader = DataLoader(
         train_dataset,
@@ -88,12 +109,11 @@ def main():
     val_dataset = Dataset(root_dir_x=config.VAL_DIR_X, root_dir_y=config.VAL_DIR_Y)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
+    # epoch loop
     for epoch in range(config.NUM_EPOCHS):
         print(f"Epoch: {epoch}")
 
-        loss = train_fn(
-            disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, g_scaler, d_scaler,
-            )
+        loss = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, g_scaler, d_scaler, run,)
         loss_values.append(loss)
 
         if config.SAVE_MODEL and epoch % 1 == 0:

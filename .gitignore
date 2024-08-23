@@ -1,7 +1,5 @@
 *.tif
 *.tar
-*.png
-*.jpg
 *.npy
 
 # Byte-compiled / optimized / DLL files
