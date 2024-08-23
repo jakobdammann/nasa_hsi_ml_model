@@ -70,7 +70,7 @@ def main():
     print("\nTraining...\n")
 
     # Neptune
-    run = neptune.init_run(project="menonlab/classification",
+    run = neptune.init_run(project="jakobdammann/NASA-HSI-ML-Model",
                            capture_hardware_metrics=True,
                            capture_stderr=True,
                            capture_stdout=True,)
