@@ -63,11 +63,11 @@ class Discriminator(nn.Module):
     def forward_v2(self, x, y):
         y = torch.nn.functional.interpolate(y, x.shape[2:], mode='bilinear')
         x = torch.cat([x, y], dim=1)
-        print(x.shape)
+        #print(x.shape)
         x = self.initial(x)
-        print(x.shape)
+        #print(x.shape)
         x = self.model(x)
-        print(x.shape)
+        #print(x.shape)
         return x
 
     def forward_v1(self, x, y):
@@ -76,11 +76,11 @@ class Discriminator(nn.Module):
         y = torch.nn.functional.pad(y, pad=(diff,0))
         y = torch.reshape(y, shape=(1, 1, 900, 900))
         x = torch.cat([x, y], dim=1)
-        print(x.shape)
+        #print(x.shape)
         x = self.initial(x)
-        print(x.shape)
+        #print(x.shape)
         x = self.model(x)
-        print(x.shape)
+        #print(x.shape)
         return x
 
 def test():
