@@ -24,7 +24,7 @@ class Discriminator(nn.Module):
         super().__init__()
 
         # because of flattening
-        in_channels_y = 1
+        #in_channels_y = 1
 
         # conv to first feature amount
         self.initial = nn.Sequential(
@@ -58,15 +58,30 @@ class Discriminator(nn.Module):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x, y):
+        return self.forward_v2(x, y)
+
+    def forward_v2(self, x, y):
+        y = torch.nn.functional.interpolate(y, x.shape[2:], mode='bilinear')
+        x = torch.cat([x, y], dim=1)
+        print(x.shape)
+        x = self.initial(x)
+        print(x.shape)
+        x = self.model(x)
+        print(x.shape)
+        return x
+
+    def forward_v1(self, x, y):
         y = torch.reshape(y, shape=(1, 42*42*106))
         diff = 1*900*900 - 42*42*106
         y = torch.nn.functional.pad(y, pad=(diff,0))
         y = torch.reshape(y, shape=(1, 1, 900, 900))
         x = torch.cat([x, y], dim=1)
+        print(x.shape)
         x = self.initial(x)
+        print(x.shape)
         x = self.model(x)
+        print(x.shape)
         return x
-
 
 def test():
     x = torch.randn((1, 1, 900, 900))
