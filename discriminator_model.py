@@ -58,7 +58,7 @@ class Discriminator(nn.Module):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x, y):
-        return self.forward_v2(x, y)
+        return self.forward_v1(x, y)
 
     def forward_v2(self, x, y):
         y = torch.nn.functional.interpolate(y, x.shape[2:], mode='bilinear')
