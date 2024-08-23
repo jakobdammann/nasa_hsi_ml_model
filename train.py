@@ -16,7 +16,7 @@ from discriminator_model import Discriminator
 torch.backends.cudnn.benchmark = True
 
 
-def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_scaler, run):
+def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss: nn.L1Loss, bce, g_scaler, d_scaler, run):
     loop = tqdm(loader, leave=True, mininterval=3)
     running_loss = []
 
@@ -56,12 +56,12 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, g_scaler, d_sca
                 D_fake=torch.sigmoid(D_fake).mean().item(),
             )
         # neptune log
-        run["Gen Loss"].log(G_loss.item())
-        run["Dis Loss"].log(D_loss.item())
-        run["Dis real loss"].log(D_real_loss.item())
-        run["Dis fake loss"].log(D_fake_loss.item())
-        run['L1 Loss'].log(l1_loss.item())
-        run['Gen GAN Loss'].log(G_fake_loss.item())
+        run["gen_loss"].log(G_loss.item())
+        run["dis_loss"].log(D_loss.item())
+        run['gen_l1_loss'].log(L1.item())
+        run['gen_gan_loss'].log(G_fake_loss.item())
+        run['dis_real'].log(torch.sigmoid(D_real).mean().item())
+        run['dis_fake'].log(torch.sigmoid(D_fake).mean().item())
 
         running_loss.append([D_loss.item(), G_loss.item()])
     return running_loss
@@ -79,7 +79,13 @@ def main():
               'Optimizer': 'Adam',
               'Metrics': ['Binary Cross Entropy', 'L1 Loss'],
               'Activation': ['Leaky Relu', 'Relu', 'Tanh',],
-              'L1_lambda': config.L1_LAMBDA}
+              'L1_lambda': config.L1_LAMBDA,
+              'Learning Rate': config.LEARNING_RATE,
+              'Device': config.DEVICE,
+              'Workers': config.NUM_WORKERS,
+              'Load Model': config.LOAD_MODEL,
+              'Save Model': config.SAVE_MODEL
+              }
     run['parameters'] = params
 
     # Definition of Models and other stuff
@@ -123,6 +129,7 @@ def main():
         save_some_examples(gen, val_loader, epoch, folder="evaluation")
     
     np.save("loss//loss_values.npy", loss_values)
+    run.stop()
 
     print("\nTraining done.\n")
 
