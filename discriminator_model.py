@@ -24,7 +24,7 @@ class Discriminator(nn.Module):
         super().__init__()
 
         # because of flattening
-        #in_channels_y = 1
+        in_channels_y = 1
 
         # conv to first feature amount
         self.initial = nn.Sequential(
@@ -58,9 +58,22 @@ class Discriminator(nn.Module):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x, y):
-        return self.forward_v1(x, y)
+        return self.forward_v3(x, y)
+
+    def forward_v3(self, x, y):
+        # Reshuffling the CB images into artificial spatial diffractive pattern
+        diff = 11*11 - 106
+        y = nn.functional.pad(y, (0,0,0,0,0,diff), value=0) # 121x42x42
+        y = nn.functional.pixel_shuffle(y, 11) # 1x462x462
+        y = nn.functional.interpolate(y, x.shape[2:], mode='bilinear') # 1x900x900
+        x = torch.cat([x, y], dim=1) # 2x900x900
+        x = self.initial(x) # 64x350x450
+        x = self.model(x) # 1x26x26
+        return x
+
 
     def forward_v2(self, x, y):
+        # slow and not better than v1
         y = torch.nn.functional.interpolate(y, x.shape[2:], mode='bilinear')
         x = torch.cat([x, y], dim=1)
         #print(x.shape)
