@@ -2,6 +2,7 @@ import torch
 from utils import save_checkpoint, load_checkpoint, save_some_examples
 import torch.nn as nn
 import torch.optim as optim
+from torchmetrics.image import SpectralAngleMapper
 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -16,9 +17,18 @@ from discriminator_model import Discriminator
 torch.backends.cudnn.benchmark = True
 
 
-def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss: nn.L1Loss, bce, g_scaler, d_scaler, run):
+def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss: nn.L1Loss, bce, spectral_loss, g_scaler, d_scaler):
     loop = tqdm(loader, leave=True, mininterval=3)
-    running_loss = []
+    n = len(loop)
+    running_loss = {
+        "gen_loss": 0,
+        "dis_loss": 0,
+        "gen_l1_loss": 0,
+        "gen_gan_loss": 0,
+        "gen_spec_loss": 0,
+        "dis_real": 0,
+        "dis_fake": 0
+    }
 
     for idx, (x, y) in enumerate(loop):
         x = x.to(config.DEVICE)
@@ -43,7 +53,8 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss: nn.L1Loss, bce, g_sc
             D_fake = disc(x, y_fake)
             G_fake_loss = bce(D_fake, torch.ones_like(D_fake))
             L1 = l1_loss(y_fake, y) * config.L1_LAMBDA
-            G_loss = G_fake_loss + L1
+            SPEC = spectral_loss(y_fake, y) * config.SPEC_LAMBDA
+            G_loss = G_fake_loss + L1 + SPEC
 
         opt_gen.zero_grad()
         g_scaler.scale(G_loss).backward()
@@ -55,15 +66,15 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss: nn.L1Loss, bce, g_sc
                 D_real=torch.sigmoid(D_real).mean().item(),
                 D_fake=torch.sigmoid(D_fake).mean().item(),
             )
-        # neptune log
-        run["gen_loss"].log(G_loss.item())
-        run["dis_loss"].log(D_loss.item())
-        run['gen_l1_loss'].log(L1.item())
-        run['gen_gan_loss'].log(G_fake_loss.item())
-        run['dis_real'].log(torch.sigmoid(D_real).mean().item())
-        run['dis_fake'].log(torch.sigmoid(D_fake).mean().item())
+        # log into running_loss
+        running_loss["gen_loss"] += G_loss.item() / n
+        running_loss["dis_loss"] += D_loss.item() / n
+        running_loss['gen_l1_loss'] += L1.item() / n
+        running_loss['gen_gan_loss'] += G_fake_loss.item() / n
+        running_loss['gen_spec_loss'] += SPEC.item() / n
+        running_loss['dis_real'] += torch.sigmoid(D_real).mean().item() / n
+        running_loss['dis_fake'] += torch.sigmoid(D_fake).mean().item() / n
 
-        running_loss.append([D_loss.item(), G_loss.item()])
     return running_loss
 
 def main():
@@ -80,6 +91,7 @@ def main():
               'Metrics': ['Binary Cross Entropy', 'L1 Loss'],
               'Activation': ['Leaky Relu', 'Relu', 'Tanh',],
               'L1_lambda': config.L1_LAMBDA,
+              'Spectral_lambda': config.SPEC_LAMBDA,
               'Learning Rate': config.LEARNING_RATE,
               'Device': config.DEVICE,
               'Workers': config.NUM_WORKERS,
@@ -95,7 +107,7 @@ def main():
     opt_gen = optim.Adam(gen.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
     BCE = nn.BCEWithLogitsLoss()
     L1_LOSS = nn.L1Loss()
-    loss_values = []
+    SPECTRAL_LOSS = SpectralAngleMapper().to('cuda')
 
     # Load model
     if config.LOAD_MODEL:
@@ -113,22 +125,30 @@ def main():
     g_scaler = torch.amp.GradScaler('cuda')
     d_scaler = torch.amp.GradScaler('cuda')
     val_dataset = Dataset(root_dir_x=config.VAL_DIR_X, root_dir_y=config.VAL_DIR_Y)
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False)
 
     # epoch loop
     for epoch in range(config.NUM_EPOCHS):
         print(f"Epoch: {epoch}")
 
-        loss = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, g_scaler, d_scaler, run,)
-        loss_values.append(loss)
+        loss = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, SPECTRAL_LOSS, g_scaler, d_scaler)
+        print(loss)
+        # neptune log
+        run["gen_loss"].log(loss['gen_loss'])
+        run["dis_loss"].log(loss['dis_loss'])
+        run['gen_l1_loss'].log(loss['gen_l1_loss'])
+        run['gen_gan_loss'].log(loss['gen_gan_loss'])
+        run['gen_spec_loss'].log(loss['gen_spec_loss'])
+        run['dis_real'].log(loss['dis_real'])
+        run['dis_fake'].log(loss['dis_fake'])
+
 
         if config.SAVE_MODEL and epoch % 1 == 0:
             save_checkpoint(gen, opt_gen, filename=config.CHECKPOINT_GEN)
             save_checkpoint(disc, opt_disc, filename=config.CHECKPOINT_DISC)
 
-        save_some_examples(gen, val_loader, epoch, folder="evaluation")
+        save_some_examples(gen, val_loader, epoch, run=run)
     
-    np.save("loss//loss_values.npy", loss_values)
     run.stop()
 
     print("\nTraining done.\n")
