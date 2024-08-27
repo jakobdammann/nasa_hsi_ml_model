@@ -1,6 +1,3 @@
 [submodule "volumentations"]
 	path = volumentations
 	url = git@github.com:ashawkey/volumentations.git
-[submodule "HSI2RGB"]
-	path = HSI2RGB
-	url = git@github.com:JakobSig/HSI2RGB.git
