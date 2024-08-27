@@ -3,7 +3,7 @@ import config
 from torchvision.utils import save_image
 import numpy as np
 import matplotlib.pyplot as plt
-from HSI2RGB.HSI2RGB import HSI2RGB
+from RGB.HSI2RGB import HSI2RGB
 
 def save_some_examples(gen, val_loader, epoch, run):
     x, y = next(iter(val_loader))
