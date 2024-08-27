@@ -1,11 +1,10 @@
 import numpy as np
 import config
 import os
-from PIL import Image
 import tifffile
 from torch.utils.data import Dataset, DataLoader
 from torchvision.utils import save_image
-import utils
+import matplotlib.pyplot as plt
 
 
 class Dataset(Dataset):
@@ -27,7 +26,16 @@ class Dataset(Dataset):
         img_path_y = os.path.join(self.root_dir_y, img_file_y)
         image_y = np.array(tifffile.imread(img_path_y))
 
-        input_image = np.array([image_x[3].astype('float32')])
+        if config.RAW_TL_IMAGE == True:
+            # recreate not demosaiced image out of the mosaic
+            input_image = np.empty(shape=(1, *image_x[0].shape), dtype=np.float32)
+            input_image[0, 0::2, 0::2] = image_x[0, 0::2, 0::2] # top left, 0 deg
+            input_image[0, 0::2, 1::2] = image_x[1, 0::2, 1::2] # top right, 45 deg
+            input_image[0, 1::2, 0::2] = image_x[3, 1::2, 0::2] # bottom left, 135 deg or -45 deg
+            input_image[0, 1::2, 1::2] = image_x[2, 1::2, 1::2] # bottom right, 90 deg
+        else:
+            input_image = np.array([image_x[3].astype('float32')])
+        
         min = np.min(input_image)
         max = np.max(input_image)
         input_image = (input_image - min) / (max - min + 1e-12)
@@ -58,11 +66,13 @@ class Dataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = Dataset("images/first_dataset/thorlabs", "images/first_dataset/cubert")
-    loader = DataLoader(dataset, batch_size=2)
+    dataset = Dataset(config.VAL_DIR_X, config.VAL_DIR_Y)
+    loader = DataLoader(dataset, batch_size=1)
     for x, y in loader:
         print(x.shape)
         print(y.shape)
-        import sys
+        plt.imshow(x[0, 0, 400:450, 400:450])
+        plt.colorbar()
+        plt.show()
+        break
 
-        sys.exit()

@@ -5,21 +5,24 @@ import cv2
 #from albumentations.pytorch import ToTensorV2
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TRAIN_DIR_X = "images//first_dataset//thorlabs"
-TRAIN_DIR_Y = "images//first_dataset//cubert"
-VAL_DIR_X = "images//first_dataset//thorlabs"
-VAL_DIR_Y = "images//first_dataset//cubert"
+TRAIN_DIR_X = "images//display_dataset//thorlabs"
+TRAIN_DIR_Y = "images//display_dataset//cubert"
+VAL_DIR_X = "images//display_dataset//thorlabs"
+VAL_DIR_Y = "images//display_dataset//cubert"
+RAW_TL_IMAGE = True
+
 LEARNING_RATE = 2e-4
 BATCH_SIZE = 1
 NUM_WORKERS = 2
 CHANNELS_IMG = 3
 L1_LAMBDA = 30
 SPEC_LAMBDA = 100
-NUM_EPOCHS = 3
+NUM_EPOCHS = 5
+
 LOAD_MODEL = False
 SAVE_MODEL = True
-CHECKPOINT_DISC = "disc.pth.tar"
-CHECKPOINT_GEN = "gen.pth.tar"
+CHECKPOINT_DISC = "model/disc.pth.tar"
+CHECKPOINT_GEN = "model/gen.pth.tar"
 
 
 # Augmentations

@@ -15,7 +15,7 @@ folder = "test"
 n = 10
 
 def main():
-    print(f"Testing... n={n}")
+    print(f"\nTesting... n={n}\n")
     gen = Generator(in_channels=1, out_channels=106, features=64).to(config.DEVICE)
     opt_gen = optim.Adam(gen.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
 
@@ -40,7 +40,7 @@ def main():
             save_image(y_fake[i], folder + f"/tl_gen_{i}.tif")
             save_image(x[i] * 0.5 + 0.5, folder + f"/tl_raw_{i}.tif")
             save_image(y[i] * 0.5 + 0.5, folder + f"/cb_raw_{i}.tif")
-    print("Testing done.")
+    print("\nTesting done\n")
 
 def save_image(image, path):
     imwrite(path, image)
