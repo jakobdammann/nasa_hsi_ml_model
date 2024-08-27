@@ -5,9 +5,9 @@ import os
 from matplotlib import widgets
 
 # Folder paths for images
-thorlabs_image_folder = 'test'
-cubert_image_folder = 'test'
-gen_image_folder = 'test'
+thorlabs_image_folder = 'test/imgs'
+cubert_image_folder = 'test/imgs'
+gen_image_folder = 'test/imgs'
 
 # List available files in each folder
 thorlabs_files = sorted([f for f in os.listdir(thorlabs_image_folder) if f.endswith(".tif") and f.startswith("tl_raw")])

@@ -11,7 +11,7 @@ import numpy as np
 
 torch.backends.cudnn.benchmark = True
 
-folder = "test"
+folder = "test/imgs"
 n = 10
 
 def main():
