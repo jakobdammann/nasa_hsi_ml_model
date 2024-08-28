@@ -15,22 +15,23 @@ def save_some_examples(gen, val_loader, epoch, run):
         y = y.cpu().numpy() * 0.5 + 0.5
         # Pyplot
         fig, ax = plt.subplots(2, 3, figsize=(10,7))
-        fig.suptitle(f"Example Images, Epoch {epoch}")
+        fig.suptitle(f"Example Images, Epoch {epoch+1}")
         for i in range(3):
             ax[0,i].imshow(reconstruct_rgb(y[i]))
-            ax[0,i].title("Ground Truth")
+            ax[0,i].set_title("Ground Truth")
+            plt.axis('off')
             ax[1,i].imshow(reconstruct_rgb(y_fake[i]))
-            ax[1,i].title("Generated Image")
-        plt.axis('off')
+            ax[1,i].set_title("Generated Image")
+            plt.axis('off')
         plt.tight_layout()
-        run[f"example_{epoch}"].upload(fig)
+        run[f"example_{epoch+1}"].upload(fig)
         print("Uploaded example plot.")
     gen.train()
 
 def reconstruct_rgb(img):
-    wl = np.linspace(350,1000,106)
+    wl = np.linspace(350,1000,config.SHAPE_Y[0])
     img = img.transpose(1,2,0)
-    data = np.reshape(img, [-1, 106])
+    data = np.reshape(img, [-1, config.SHAPE_Y[0]])
     RGB = HSI2RGB(wl, data, 42, 42, 65, 0.002)
     #RGB = RGB.transpose(2,0,1)
     return RGB

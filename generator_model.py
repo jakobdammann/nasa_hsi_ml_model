@@ -4,6 +4,7 @@ import torch.nn.functional as func
 import torchvision.transforms.functional as tv_func
 from utils import print_info
 import time
+import config as c
 
 class Block(nn.Module):
     def __init__(self, in_channels, out_channels, down=True, act="relu", use_dropout=False, kernel=4, stride=2, pad=1):

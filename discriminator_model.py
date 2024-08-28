@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 from utils import print_info
+import config as c
+import numpy as np
 
 
 class CNNBlock(nn.Module):
@@ -25,6 +27,8 @@ class Discriminator(nn.Module):
 
         # because of flattening
         in_channels_y = 1
+        # faster this way:
+        self.sqrt = int(np.sqrt(c.NEAR_SQUARE))
 
         # conv to first feature amount
         self.initial = nn.Sequential(
@@ -62,9 +66,9 @@ class Discriminator(nn.Module):
 
     def forward_v3(self, x, y):
         # Reshuffling the CB images into artificial spatial diffractive pattern
-        diff = 11*11 - 106
+        diff = c.NEAR_SQUARE - c.SHAPE_Y[0]
         y = nn.functional.pad(y, (0,0,0,0,0,diff), value=0) # 121x42x42
-        y = nn.functional.pixel_shuffle(y, 11) # 1x462x462
+        y = nn.functional.pixel_shuffle(y, self.sqrt) # 1x462x462
         y = nn.functional.interpolate(y, x.shape[2:], mode='bilinear') # 1x900x900
         x = torch.cat([x, y], dim=1) # 2x900x900
         x = self.initial(x) # 64x350x450
@@ -98,7 +102,9 @@ class Discriminator(nn.Module):
 
 def test():
     x = torch.randn((1, 1, 900, 900))
-    y = torch.randn((1, 106, 42, 42))
+    y = torch.randn((1, 3, 42, 42))
+    c.SHAPE_Y = (3,42,42)
+    c.NEAR_SQUARE = 4
     model = Discriminator(in_channels_x=1, in_channels_y=106)
     preds = model(x, y)
     #print("\nModel:\n", model)

@@ -2,9 +2,11 @@ import numpy as np
 import config
 import os
 import tifffile
+import torch
 from torch.utils.data import Dataset, DataLoader
-from torchvision.utils import save_image
+import torch.nn.functional as f
 import matplotlib.pyplot as plt
+import volumentations.volumentations as v
 
 
 class Dataset(Dataset):
@@ -34,8 +36,9 @@ class Dataset(Dataset):
             input_image[0, 1::2, 0::2] = image_x[3, 1::2, 0::2] # bottom left, 135 deg or -45 deg
             input_image[0, 1::2, 1::2] = image_x[2, 1::2, 1::2] # bottom right, 90 deg
         else:
+            # Take 135 deg polarization channel
             input_image = np.array([image_x[3].astype('float32')])
-        
+        # norm
         min = np.min(input_image)
         max = np.max(input_image)
         input_image = (input_image - min) / (max - min + 1e-12)
@@ -45,6 +48,11 @@ class Dataset(Dataset):
         #print("input_image.shape:", input_image.shape)
 
         target_image = image_y.astype('float32')
+        # Resizing CB image if needed/wanted
+        if config.SHAPE_Y != target_image.shape:
+            downsample = v.Compose([v.Resize(config.SHAPE_Y, always_apply=True)])
+            target_image = downsample(image=target_image)["image"]
+        # norm
         min = np.min(target_image)
         max = np.max(target_image)
         target_image = (target_image - min) / (max - min + 1e-12)
@@ -71,8 +79,8 @@ if __name__ == "__main__":
     for x, y in loader:
         print(x.shape)
         print(y.shape)
-        plt.imshow(x[0, 0, 400:450, 400:450])
-        plt.colorbar()
-        plt.show()
+        # plt.imshow(x[0, 0, 400:450, 400:450])
+        # plt.colorbar()
+        # plt.show()
         break
 

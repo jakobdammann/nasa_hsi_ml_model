@@ -16,7 +16,7 @@ n = 10
 
 def main():
     print(f"\nTesting... n={n}\n")
-    gen = Generator(in_channels=1, out_channels=106, features=64).to(config.DEVICE)
+    gen = Generator(in_channels=config.SHAPE_X[0], out_channels=config.SHAPE_Y[0], features=64).to(config.DEVICE)
     opt_gen = optim.Adam(gen.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
 
     load_checkpoint(config.CHECKPOINT_GEN, gen, opt_gen, config.LEARNING_RATE,)

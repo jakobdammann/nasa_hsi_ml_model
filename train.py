@@ -17,7 +17,7 @@ from discriminator_model import Discriminator
 torch.backends.cudnn.benchmark = True
 
 
-def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss: nn.L1Loss, bce, spectral_loss, g_scaler, d_scaler):
+def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, g_scaler, d_scaler):
     loop = tqdm(loader, leave=True, mininterval=3)
     n = len(loop)
     running_loss = {
@@ -53,7 +53,7 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss: nn.L1Loss, bce, spec
             D_fake = disc(x, y_fake)
             G_fake_loss = bce(D_fake, torch.ones_like(D_fake))
             L1 = l1_loss(y_fake, y) * config.L1_LAMBDA
-            SPEC = spectral_loss(y_fake, y) * config.SPEC_LAMBDA
+            SPEC = spectral_loss(y_fake, y).square().mean() * config.SPEC_LAMBDA
             G_loss = G_fake_loss + L1 + SPEC
 
         opt_gen.zero_grad()
@@ -101,13 +101,13 @@ def main():
     run['parameters'] = params
 
     # Definition of Models and other stuff
-    disc = Discriminator(in_channels_x=1, in_channels_y=106).to(config.DEVICE)
-    gen = Generator(in_channels=1, out_channels=106, features=64).to(config.DEVICE)
+    disc = Discriminator(in_channels_x=config.SHAPE_X[0], in_channels_y=config.SHAPE_Y[0]).to(config.DEVICE)
+    gen = Generator(in_channels=config.SHAPE_X[0], out_channels=config.SHAPE_Y[0], features=64).to(config.DEVICE)
     opt_disc = optim.Adam(disc.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
     opt_gen = optim.Adam(gen.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
     BCE = nn.BCEWithLogitsLoss()
     L1_LOSS = nn.L1Loss()
-    SPECTRAL_LOSS = SpectralAngleMapper().to('cuda')
+    SPECTRAL_LOSS = SpectralAngleMapper(reduction='none').to('cuda')
 
     # Load model
     if config.LOAD_MODEL:
@@ -132,15 +132,7 @@ def main():
         print(f"Epoch: {epoch}")
 
         loss = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, SPECTRAL_LOSS, g_scaler, d_scaler)
-        print(loss)
-        # neptune log
-        run["gen_loss"].log(loss['gen_loss'])
-        run["dis_loss"].log(loss['dis_loss'])
-        run['gen_l1_loss'].log(loss['gen_l1_loss'])
-        run['gen_gan_loss'].log(loss['gen_gan_loss'])
-        run['gen_spec_loss'].log(loss['gen_spec_loss'])
-        run['dis_real'].log(loss['dis_real'])
-        run['dis_fake'].log(loss['dis_fake'])
+        log_loss(run, loss)
 
 
         if config.SAVE_MODEL and epoch % 1 == 0:
@@ -153,6 +145,15 @@ def main():
 
     print("\nTraining done.\n")
 
+def log_loss(run, loss):
+    # neptune log
+    run["gen_loss"].log(loss['gen_loss'])
+    run["dis_loss"].log(loss['dis_loss'])
+    run['gen_l1_loss'].log(loss['gen_l1_loss'])
+    run['gen_gan_loss'].log(loss['gen_gan_loss'])
+    run['gen_spec_loss'].log(loss['gen_spec_loss'])
+    run['dis_real'].log(loss['dis_real'])
+    run['dis_fake'].log(loss['dis_fake'])
 
 if __name__ == "__main__":
     main()
