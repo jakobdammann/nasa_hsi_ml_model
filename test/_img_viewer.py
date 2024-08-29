@@ -22,7 +22,7 @@ current_cb_file = cubert_files[current_img_index%len(cubert_files)]
 current_gen_file = gen_files[current_img_index%len(gen_files)]
 
 current_channel = 53
-wavelengths = np.linspace(450, 850, 106)  # Assuming 106 channels from 450-850 nm
+wavelengths = np.linspace(450, 870, 106)  # Assuming 106 channels from 450-850 nm
 spectra_cb = []
 spectra_gen = []
 
@@ -272,7 +272,7 @@ def plot_spectra(ax_spec_cb, spectra_cb, selected_area_cb):
             
             # Write peak wavelength in the top-right corner of the plot
             ax_spec_cb.text(
-                0.95, 0.95,  # x, y position in axes coordinates (0.95, 0.95) corresponds to the top-right corner
+                0.95, 0.85,  # x, y position in axes coordinates (0.95, 0.95) corresponds to the top-right corner
                 f'Peak: {peak_wavelength:.1f} nm\nColor: {color}\nSNR (full spectrum): {snr(selected_area_cb):.2f}\n SNR (channel: {current_channel}): {snr(selected_area_cb[current_channel]):.2f}',
                 transform=ax_spec_cb.transAxes,  # Use axes coordinates for positioning
                 fontsize=10,

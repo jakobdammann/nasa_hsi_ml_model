@@ -19,17 +19,17 @@ def save_some_examples(gen, val_loader, epoch, run):
         for i in range(3):
             ax[0,i].imshow(reconstruct_rgb(y[i]))
             ax[0,i].set_title("Ground Truth")
-            plt.axis('off')
+            ax[0,i].set_axis_off()
             ax[1,i].imshow(reconstruct_rgb(y_fake[i]))
             ax[1,i].set_title("Generated Image")
-            plt.axis('off')
+            ax[1,i].set_axis_off()
         plt.tight_layout()
         run[f"example_{epoch+1}"].upload(fig)
         print("Uploaded example plot.")
     gen.train()
 
 def reconstruct_rgb(img):
-    wl = np.linspace(350,1000,config.SHAPE_Y[0])
+    wl = np.linspace(400,1000,config.SHAPE_Y[0]) # this may not be real values, just what looks best
     img = img.transpose(1,2,0)
     data = np.reshape(img, [-1, config.SHAPE_Y[0]])
     RGB = HSI2RGB(wl, data, 42, 42, 65, 0.002)

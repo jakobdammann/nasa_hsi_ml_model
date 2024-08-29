@@ -4,6 +4,8 @@ from utils import print_info
 import config as c
 import numpy as np
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class CNNBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride):
@@ -22,7 +24,7 @@ class CNNBlock(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, in_channels_x=1, in_channels_y=3, features=[64, 128, 256, 512, 1024, 2048]):
+    def __init__(self, in_channels_x=1, in_channels_y=3, features=[64, 128, 256, 512, 1024]):
         super().__init__()
 
         # because of flattening
@@ -48,7 +50,7 @@ class Discriminator(nn.Module):
         in_channels = features[0]
         for feature in features[1:]:
             layers.append(
-                CNNBlock(in_channels, feature, stride=1 if feature == features[-1] else 2),
+                CNNBlock(in_channels, feature, stride=1 if feature == features[-1] else 2).to(device),
             )
             in_channels = feature
 
@@ -56,10 +58,10 @@ class Discriminator(nn.Module):
         layers.append(
             nn.Conv2d(
                 in_channels, 1, kernel_size=4, stride=1, padding=1, padding_mode="reflect"
-            ),
+            ).to(device),
         )
 
-        self.model = nn.Sequential(*layers)
+        self.model = layers
 
     def forward(self, x, y):
         return self.forward_v3(x, y)
@@ -69,11 +71,15 @@ class Discriminator(nn.Module):
         diff = c.NEAR_SQUARE - c.SHAPE_Y[0]
         y = nn.functional.pad(y, (0,0,0,0,0,diff), value=0) # 121x42x42
         y = nn.functional.pixel_shuffle(y, self.sqrt) # 1x462x462
-        y = nn.functional.interpolate(y, x.shape[2:], mode='bilinear') # 1x900x900
+        y = nn.functional.interpolate(y, x.shape[2:], mode='nearest') # 1x900x900
         x = torch.cat([x, y], dim=1) # 2x900x900
-        x = self.initial(x) # 64x350x450
-        x = self.model(x) # 1x26x26
-        return x
+        x = self.initial(x) # 64x450x450
+        x0 = []
+        for layer in self.model:
+            x0.append(x)
+            x = layer(x) # 1x54x54 at the end
+        x0.append(x)
+        return x, x0 # outputs end tensor and all the previous tensors in an array
 
 
     def forward_v2(self, x, y):
@@ -108,8 +114,14 @@ def test():
     model = Discriminator(in_channels_x=1, in_channels_y=106)
     preds = model(x, y)
     #print("\nModel:\n", model)
-    print("\nShape of prediction:\n", preds.shape)
-    print_info(preds, "Preds")
+    for p in preds:
+        try:
+            print("\nShape of prediction:", p.shape)
+            print_info(p, "Preds")
+        except:
+            for p0 in p:
+                print("\nP0: Shape of prediction:", p0.shape)
+                print_info(p0, "Preds")
 
 
 if __name__ == "__main__":

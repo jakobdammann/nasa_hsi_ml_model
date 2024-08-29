@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 import neptune
+import time
 
 import config
 from dataset import Dataset
@@ -15,12 +16,21 @@ from generator_model import Generator
 from discriminator_model import Discriminator
 
 torch.backends.cudnn.benchmark = True
+log_per_step = True
 
-
-def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, g_scaler, d_scaler):
+def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, g_scaler, d_scaler, run):
     loop = tqdm(loader, leave=True, mininterval=3)
     n = len(loop)
     running_loss = {
+        "gen_loss": 0,
+        "dis_loss": 0,
+        "gen_l1_loss": 0,
+        "gen_gan_loss": 0,
+        "gen_spec_loss": 0,
+        "dis_real": 0,
+        "dis_fake": 0
+    }
+    current_loss = {
         "gen_loss": 0,
         "dis_loss": 0,
         "gen_l1_loss": 0,
@@ -37,9 +47,9 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
         # Train Discriminator
         with torch.amp.autocast('cuda'):
             y_fake = gen(x)
-            D_real = disc(x, y)
+            D_real = disc(x, y)[0]
             D_real_loss = bce(D_real, torch.ones_like(D_real))
-            D_fake = disc(x, y_fake.detach())
+            D_fake = disc(x, y_fake.detach())[0]
             D_fake_loss = bce(D_fake, torch.zeros_like(D_fake))
             D_loss = (D_real_loss + D_fake_loss) / 2
 
@@ -51,10 +61,18 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
         # Train generator
         with torch.amp.autocast('cuda'):
             D_fake = disc(x, y_fake)
-            G_fake_loss = bce(D_fake, torch.ones_like(D_fake))
+            D_real = disc(x, y)
+            # Adverserial loss
+            G_fake_loss = bce(D_fake[0], torch.ones_like(D_fake[0])) * config.ADV_LAMDA
+            # LFM loss
+            LFM_loss = 0
+            LFM_weights = [1./16, 1./8, 1./4, 1./4, 1./2, 1.]
+            for i, tensors in enumerate(zip(D_fake[1], D_real[1])):
+                LFM_loss += l1_loss(tensors[0], tensors[1]) * LFM_weights[i] * config.LFM_LAMBDA
+            # Other losses
             L1 = l1_loss(y_fake, y) * config.L1_LAMBDA
-            SPEC = spectral_loss(y_fake, y).square().mean() * config.SPEC_LAMBDA
-            G_loss = G_fake_loss + L1 + SPEC
+            SPEC = spectral_loss(y_fake, y) * config.SPEC_LAMBDA
+            G_loss = G_fake_loss + L1 + SPEC + LFM_loss
 
         opt_gen.zero_grad()
         g_scaler.scale(G_loss).backward()
@@ -63,17 +81,29 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
 
         if idx % 10 == 0:
             loop.set_postfix(
-                D_real=torch.sigmoid(D_real).mean().item(),
-                D_fake=torch.sigmoid(D_fake).mean().item(),
+                D_real=torch.sigmoid(D_real[0]).mean().item(),
+                D_fake=torch.sigmoid(D_fake[0]).mean().item(),
             )
-        # log into running_loss
+        # log loss per step
+        current_loss["gen_loss"] = G_loss.item() / n
+        current_loss["dis_loss"] = D_loss.item() / n
+        current_loss['gen_l1_loss'] = L1.item() / n
+        current_loss['gen_gan_loss'] = G_fake_loss.item() / n
+        current_loss['gen_spec_loss'] = SPEC.item() / n
+        current_loss['gen_lfm_loss'] = LFM_loss.item() / n
+        current_loss['dis_real'] = torch.sigmoid(D_real[0]).mean().item() / n
+        current_loss['dis_fake'] = torch.sigmoid(D_fake[0]).mean().item() / n
+        if log_per_step:
+            log_loss(run=run, loss=current_loss)
+        # log loss per epoch
         running_loss["gen_loss"] += G_loss.item() / n
         running_loss["dis_loss"] += D_loss.item() / n
         running_loss['gen_l1_loss'] += L1.item() / n
         running_loss['gen_gan_loss'] += G_fake_loss.item() / n
         running_loss['gen_spec_loss'] += SPEC.item() / n
-        running_loss['dis_real'] += torch.sigmoid(D_real).mean().item() / n
-        running_loss['dis_fake'] += torch.sigmoid(D_fake).mean().item() / n
+        running_loss['gen_lfm_loss'] = LFM_loss.item() / n
+        running_loss['dis_real'] += torch.sigmoid(D_real[0]).mean().item() / n
+        running_loss['dis_fake'] += torch.sigmoid(D_fake[0]).mean().item() / n
 
     return running_loss
 
@@ -88,8 +118,8 @@ def main():
     params = {'Epoch': config.NUM_EPOCHS,
               'Batch Size': config.BATCH_SIZE,
               'Optimizer': 'Adam',
-              'Metrics': ['Binary Cross Entropy', 'L1 Loss'],
-              'Activation': ['Leaky Relu', 'Relu', 'Tanh',],
+              'Metrics': 'Binary Cross Entropy, L1 Loss, Spectral Angle',
+              'Activation': 'Leaky Relu, Relu, Tanh',
               'L1_lambda': config.L1_LAMBDA,
               'Spectral_lambda': config.SPEC_LAMBDA,
               'Learning Rate': config.LEARNING_RATE,
@@ -107,7 +137,7 @@ def main():
     opt_gen = optim.Adam(gen.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
     BCE = nn.BCEWithLogitsLoss()
     L1_LOSS = nn.L1Loss()
-    SPECTRAL_LOSS = SpectralAngleMapper(reduction='none').to('cuda')
+    SPECTRAL_LOSS = SpectralAngleMapper().to('cuda')
 
     # Load model
     if config.LOAD_MODEL:
@@ -129,10 +159,11 @@ def main():
 
     # epoch loop
     for epoch in range(config.NUM_EPOCHS):
-        print(f"Epoch: {epoch}")
+        print(f"Epoch: {epoch + 1}")
 
-        loss = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, SPECTRAL_LOSS, g_scaler, d_scaler)
-        log_loss(run, loss)
+        loss = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, SPECTRAL_LOSS, g_scaler, d_scaler, run)
+        if not log_per_step:
+            log_loss(run, loss)
 
 
         if config.SAVE_MODEL and epoch % 1 == 0:
@@ -146,14 +177,18 @@ def main():
     print("\nTraining done.\n")
 
 def log_loss(run, loss):
-    # neptune log
+    # Neptune log
     run["gen_loss"].log(loss['gen_loss'])
     run["dis_loss"].log(loss['dis_loss'])
     run['gen_l1_loss'].log(loss['gen_l1_loss'])
     run['gen_gan_loss'].log(loss['gen_gan_loss'])
     run['gen_spec_loss'].log(loss['gen_spec_loss'])
+    run['gen_lfm_loss'].log(loss['gen_lfm_loss'])
     run['dis_real'].log(loss['dis_real'])
     run['dis_fake'].log(loss['dis_fake'])
 
 if __name__ == "__main__":
+    start = time.time()
     main()
+    end = time.time()
+    print(f"\nTime (s): {end-start}\n")
