@@ -19,14 +19,13 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 LEARNING_RATE = 2e-4
 BATCH_SIZE = 1
 NUM_WORKERS = 2
-CHANNELS_IMG = 3
 ADV_LAMDA = 1
 L1_LAMBDA = 30
 SPEC_LAMBDA = 50
 LFM_LAMBDA = 100
-NUM_EPOCHS = 100
 
 # Training
+NUM_EPOCHS = 100
 LOAD_MODEL = False
 SAVE_MODEL = True
 CHECKPOINT_DISC = "model/disc.pth.tar"

@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from RGB.HSI2RGB import HSI2RGB
 
-def save_some_examples(gen, val_loader, epoch, run):
+def save_some_examples(gen, val_loader, epoch, step, run):
     x, y = next(iter(val_loader))
     x, y = x.to(config.DEVICE), y.to(config.DEVICE)
     gen.eval()
@@ -24,7 +24,7 @@ def save_some_examples(gen, val_loader, epoch, run):
             ax[1,i].set_title("Generated Image")
             ax[1,i].set_axis_off()
         plt.tight_layout()
-        run[f"example_{epoch+1}"].upload(fig)
+        run[f"examples"].append(value=fig, step=step)
         print("Uploaded example plot.")
     gen.train()
 

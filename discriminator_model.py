@@ -69,7 +69,7 @@ class Discriminator(nn.Module):
     def forward_v3(self, x, y):
         # Reshuffling the CB images into artificial spatial diffractive pattern
         diff = c.NEAR_SQUARE - c.SHAPE_Y[0]
-        y = nn.functional.pad(y, (0,0,0,0,0,diff), value=0) # 121x42x42
+        y = nn.functional.pad(y, (0,0,0,0,0,diff), mode='constant', value=0) # 121x42x42
         y = nn.functional.pixel_shuffle(y, self.sqrt) # 1x462x462
         y = nn.functional.interpolate(y, x.shape[2:], mode='nearest') # 1x900x900
         x = torch.cat([x, y], dim=1) # 2x900x900

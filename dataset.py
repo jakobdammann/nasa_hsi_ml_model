@@ -15,6 +15,8 @@ class Dataset(Dataset):
         self.root_dir_y = root_dir_y
         self.list_files_x = os.listdir(self.root_dir_x)
         self.list_files_y = os.listdir(self.root_dir_y)
+        if len(self.list_files_x) != len(self.list_files_y):
+            print("X file list and Y file list are differently long. This may cause wrong learning behaviour.")
 
     def __len__(self):
         return len(self.list_files_x)

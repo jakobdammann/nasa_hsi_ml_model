@@ -18,8 +18,8 @@ from discriminator_model import Discriminator
 torch.backends.cudnn.benchmark = True
 log_per_step = True
 
-def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, g_scaler, d_scaler, run):
-    loop = tqdm(loader, leave=True, mininterval=3)
+def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, g_scaler, d_scaler, step, run):
+    loop = tqdm(loader, leave=True, mininterval=10)
     n = len(loop)
     running_loss = {
         "gen_loss": 0,
@@ -85,6 +85,7 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
                 D_fake=torch.sigmoid(D_fake[0]).mean().item(),
             )
         # log loss per step
+        
         current_loss["gen_loss"] = G_loss.item() / n
         current_loss["dis_loss"] = D_loss.item() / n
         current_loss['gen_l1_loss'] = L1.item() / n
@@ -105,7 +106,23 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
         running_loss['dis_real'] += torch.sigmoid(D_real[0]).mean().item() / n
         running_loss['dis_fake'] += torch.sigmoid(D_fake[0]).mean().item() / n
 
-    return running_loss
+        step += 1
+
+    return running_loss, step
+
+def val_fn(gen, loader, l1_loss):
+    loop = tqdm(loader, leave=True, mininterval=10)
+
+    for idx, (x, y) in enumerate(loop):
+        x = x.to(config.DEVICE)
+        y = y.to(config.DEVICE)
+
+        # Run generator
+        with torch.amp.autocast('cuda'):
+            y_fake = gen(x)
+            # Other losses
+            loss = l1_loss(y_fake, y) * config.L1_LAMBDA
+    return loss
 
 def main():
     print("\nTraining...\n")
@@ -120,8 +137,10 @@ def main():
               'Optimizer': 'Adam',
               'Metrics': 'Binary Cross Entropy, L1 Loss, Spectral Angle',
               'Activation': 'Leaky Relu, Relu, Tanh',
+              'ADV_lambda': config.ADV_LAMDA,
               'L1_lambda': config.L1_LAMBDA,
               'Spectral_lambda': config.SPEC_LAMBDA,
+              'LFM_lambda': config.LFM_LAMBDA,
               'Learning Rate': config.LEARNING_RATE,
               'Device': config.DEVICE,
               'Workers': config.NUM_WORKERS,
@@ -158,19 +177,23 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False)
 
     # epoch loop
+    step = 0
     for epoch in range(config.NUM_EPOCHS):
         print(f"Epoch: {epoch + 1}")
 
-        loss = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, SPECTRAL_LOSS, g_scaler, d_scaler, run)
+        loss, step = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, SPECTRAL_LOSS, 
+                              g_scaler, d_scaler, step, run)
         if not log_per_step:
             log_loss(run, loss)
-
 
         if config.SAVE_MODEL and epoch % 1 == 0:
             save_checkpoint(gen, opt_gen, filename=config.CHECKPOINT_GEN)
             save_checkpoint(disc, opt_disc, filename=config.CHECKPOINT_DISC)
 
-        save_some_examples(gen, val_loader, epoch, run=run)
+        save_some_examples(gen, val_loader, epoch=epoch, step=step, run=run)
+        # calc val loss
+        val_loss = val_fn(gen=gen, loader=val_loader, l1_loss=L1_LOSS)
+        run["val_loss"].log(value=val_loss, step=step)
     
     run.stop()
 
@@ -191,4 +214,4 @@ if __name__ == "__main__":
     start = time.time()
     main()
     end = time.time()
-    print(f"\nTime (s): {end-start}\n")
+    print(f"\nTime (min): {(end-start)/60.0}\n")
