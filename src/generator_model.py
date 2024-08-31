@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as func
 import torchvision.transforms.functional as tv_func
-from utils import print_info
+from src.utils import print_info
 import time
 import config as c
 
@@ -82,14 +82,15 @@ class Generator(nn.Module):
         return self.forward_v3(x)
     
     def forward_v3(self, x):
-        p = self.pad(x)
-        d1 = self.initial_down(p)
-        d2 = self.down1(d1)
-        d3 = self.down2(d2)
-        d4 = self.down3(d3)
-        d5 = self.down4(d4)
-        d6 = self.down5(d5)
-        bottleneck = self.bottleneck(d6)
+        # Input: 1x900x900
+        p = self.pad(x) # 1x1024x1024
+        d1 = self.initial_down(p) # 64x512x512
+        d2 = self.down1(d1) # 128x256x256
+        d3 = self.down2(d2) # 256x128x128
+        d4 = self.down3(d3) # 512x64x64
+        d5 = self.down4(d4) # 512x32x32
+        d6 = self.down5(d5) # 512x16x16
+        bottleneck = self.bottleneck(d6) # 512x8x8
 
         u1 = self.up1(bottleneck) # 512x16x16
         #print("u1:", u1.shape, "d6:", d6.shape)

@@ -1,10 +1,10 @@
 import torch
-from utils import save_checkpoint, load_checkpoint, save_some_examples
+from src.utils import save_checkpoint, load_checkpoint, save_some_examples
 import torch.nn as nn
 import torch.optim as optim
 import config
-from dataset import Dataset
-from generator_model import Generator
+from src.dataset import Dataset
+from src.generator_model import Generator
 from torch.utils.data import DataLoader
 from tifffile import imwrite
 import numpy as np

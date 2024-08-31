@@ -1,8 +1,8 @@
 import torch
-from utils import save_checkpoint, load_checkpoint, save_some_examples
+from src.utils import save_checkpoint, load_checkpoint, save_some_examples
 import torch.nn as nn
 import torch.optim as optim
-from torchmetrics.image import SpectralAngleMapper
+from torchmetrics.image import SpectralAngleMapper, RelativeAverageSpectralError
 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -11,9 +11,9 @@ import neptune
 import time
 
 import config
-from dataset import Dataset
-from generator_model import Generator
-from discriminator_model import Discriminator
+from src.dataset import Dataset
+from src.generator_model import Generator
+from src.discriminator_model import Discriminator
 
 torch.backends.cudnn.benchmark = True
 log_per_step = True
@@ -110,7 +110,7 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
 
     return running_loss, step
 
-def val_fn(gen, loader, l1_loss):
+def val_fn(gen, loader, l1_loss, rase):
     loop = tqdm(loader, leave=True, mininterval=10)
 
     for idx, (x, y) in enumerate(loop):
@@ -121,8 +121,9 @@ def val_fn(gen, loader, l1_loss):
         with torch.amp.autocast('cuda'):
             y_fake = gen(x)
             # Other losses
-            loss = l1_loss(y_fake, y) * config.L1_LAMBDA
-    return loss
+            loss = l1_loss(y_fake, y)
+            RASE_val = rase(y_fake, y)
+    return loss, RASE_val
 
 def main():
     print("\nTraining...\n")
@@ -157,6 +158,7 @@ def main():
     BCE = nn.BCEWithLogitsLoss()
     L1_LOSS = nn.L1Loss()
     SPECTRAL_LOSS = SpectralAngleMapper().to('cuda')
+    RASE = RelativeAverageSpectralError().to('cuda')
 
     # Load model
     if config.LOAD_MODEL:
@@ -192,8 +194,9 @@ def main():
 
         save_some_examples(gen, val_loader, epoch=epoch, step=step, run=run)
         # calc val loss
-        val_loss = val_fn(gen=gen, loader=val_loader, l1_loss=L1_LOSS)
+        val_loss, rase_val = val_fn(gen=gen, loader=val_loader, l1_loss=L1_LOSS, rase=RASE)
         run["val_loss"].log(value=val_loss, step=step)
+        run["RASE"].log(value=rase_val, step=step)
     
     run.stop()
 
