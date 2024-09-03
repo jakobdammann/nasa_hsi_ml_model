@@ -5,8 +5,8 @@ import cv2
 #from albumentations.pytorch import ToTensorV2
 
 # Data Config
-TRAIN_DIR_X = "images//display_dataset//thorlabs"
-TRAIN_DIR_Y = "images//display_dataset//cubert"
+TRAIN_DIR_X = "images//first_dataset//thorlabs"
+TRAIN_DIR_Y = "images//first_dataset//cubert"
 VAL_DIR_X = "images//validation//thorlabs"
 VAL_DIR_Y = "images//validation//cubert"
 SHAPE_X = (1, 900, 900)
@@ -32,11 +32,11 @@ CHECKPOINT_DISC = "model/disc.pth.tar"
 CHECKPOINT_GEN = "model/gen.pth.tar"
 
 
-augm_3d = V.Compose([V.Resize((106, 900, 900), always_apply=True),
-                     V.PadIfNeeded((106,1024,1024), value=0)
-                     ])
+# augm_3d = V.Compose([V.Resize((106, 900, 900), always_apply=True),
+#                      V.PadIfNeeded((106,1024,1024), value=0)
+#                      ])
 
-augm_2d = A.PadIfNeeded(1024, 1024, border_mode=cv2.BORDER_CONSTANT, value=0)
+# augm_2d = A.PadIfNeeded(1024, 1024, border_mode=cv2.BORDER_CONSTANT, value=0)
 
 
 # Augmentations

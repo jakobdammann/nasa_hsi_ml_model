@@ -1,8 +1,9 @@
 import torch
-from src.utils import save_checkpoint, load_checkpoint, save_some_examples
+from src.utils import save_checkpoint, load_checkpoint, log_examples
 import torch.nn as nn
 import torch.optim as optim
-from torchmetrics.image import SpectralAngleMapper, RelativeAverageSpectralError
+from torchmetrics.image import SpectralAngleMapper
+from torchmetrics.functional.image import relative_average_spectral_error
 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -19,7 +20,7 @@ torch.backends.cudnn.benchmark = True
 log_per_step = True
 
 def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, g_scaler, d_scaler, step, run):
-    loop = tqdm(loader, leave=True, mininterval=10)
+    loop = tqdm(loader, leave=True, mininterval=100)
     n = len(loop)
     running_loss = {
         "gen_loss": 0,
@@ -27,18 +28,11 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
         "gen_l1_loss": 0,
         "gen_gan_loss": 0,
         "gen_spec_loss": 0,
+        "gen_lfm_loss": 0,
         "dis_real": 0,
         "dis_fake": 0
     }
-    current_loss = {
-        "gen_loss": 0,
-        "dis_loss": 0,
-        "gen_l1_loss": 0,
-        "gen_gan_loss": 0,
-        "gen_spec_loss": 0,
-        "dis_real": 0,
-        "dis_fake": 0
-    }
+    current_loss = {}
 
     for idx, (x, y) in enumerate(loop):
         x = x.to(config.DEVICE)
@@ -102,7 +96,7 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
         running_loss['gen_l1_loss'] += L1.item() / n
         running_loss['gen_gan_loss'] += G_fake_loss.item() / n
         running_loss['gen_spec_loss'] += SPEC.item() / n
-        running_loss['gen_lfm_loss'] = LFM_loss.item() / n
+        running_loss['gen_lfm_loss'] += LFM_loss.item() / n
         running_loss['dis_real'] += torch.sigmoid(D_real[0]).mean().item() / n
         running_loss['dis_fake'] += torch.sigmoid(D_fake[0]).mean().item() / n
 
@@ -110,8 +104,11 @@ def train_fn(disc, gen, loader, opt_disc, opt_gen, l1_loss, bce, spectral_loss, 
 
     return running_loss, step
 
-def val_fn(gen, loader, l1_loss, rase):
+def val_fn(gen, loader, l1_loss):
     loop = tqdm(loader, leave=True, mininterval=10)
+    n = len(loop)
+    loss = 0
+    rase = 0
 
     for idx, (x, y) in enumerate(loop):
         x = x.to(config.DEVICE)
@@ -121,9 +118,9 @@ def val_fn(gen, loader, l1_loss, rase):
         with torch.amp.autocast('cuda'):
             y_fake = gen(x)
             # Other losses
-            loss = l1_loss(y_fake, y)
-            RASE_val = rase(y_fake, y)
-    return loss, RASE_val
+            loss += l1_loss(y_fake, y) / n
+            rase += relative_average_spectral_error(y_fake, y).mean().item() / n
+    return loss, rase
 
 def main():
     print("\nTraining...\n")
@@ -154,11 +151,12 @@ def main():
     disc = Discriminator(in_channels_x=config.SHAPE_X[0], in_channels_y=config.SHAPE_Y[0]).to(config.DEVICE)
     gen = Generator(in_channels=config.SHAPE_X[0], out_channels=config.SHAPE_Y[0], features=64).to(config.DEVICE)
     opt_disc = optim.Adam(disc.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
+    sched_disc = optim.lr_scheduler.ExponentialLR(opt_disc, gamma=1.05)
     opt_gen = optim.Adam(gen.parameters(), lr=config.LEARNING_RATE, betas=(0.5, 0.999))
+    sched_gen = optim.lr_scheduler.ExponentialLR(opt_disc, gamma=1.05)
     BCE = nn.BCEWithLogitsLoss()
     L1_LOSS = nn.L1Loss()
     SPECTRAL_LOSS = SpectralAngleMapper().to('cuda')
-    RASE = RelativeAverageSpectralError().to('cuda')
 
     # Load model
     if config.LOAD_MODEL:
@@ -176,7 +174,7 @@ def main():
     g_scaler = torch.amp.GradScaler('cuda')
     d_scaler = torch.amp.GradScaler('cuda')
     val_dataset = Dataset(root_dir_x=config.VAL_DIR_X, root_dir_y=config.VAL_DIR_Y)
-    val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
     # epoch loop
     step = 0
@@ -185,6 +183,11 @@ def main():
 
         loss, step = train_fn(disc, gen, train_loader, opt_disc, opt_gen, L1_LOSS, BCE, SPECTRAL_LOSS, 
                               g_scaler, d_scaler, step, run)
+        sched_disc.step(loss["dis_loss"])
+        sched_gen.step(loss["gen_loss"]) # currently the lr scheduler is working with train loss not val loss
+        run['dis/lr'].log(value=sched_disc.get_last_lr(), step=step)
+        run['gen/lr'].log(value=sched_gen.get_last_lr(), step=step)
+
         if not log_per_step:
             log_loss(run, loss)
 
@@ -192,26 +195,25 @@ def main():
             save_checkpoint(gen, opt_gen, filename=config.CHECKPOINT_GEN)
             save_checkpoint(disc, opt_disc, filename=config.CHECKPOINT_DISC)
 
-        save_some_examples(gen, val_loader, epoch=epoch, step=step, run=run)
+        log_examples(gen, val_loader, epoch=epoch, step=step, run=run)
         # calc val loss
-        val_loss, rase_val = val_fn(gen=gen, loader=val_loader, l1_loss=L1_LOSS, rase=RASE)
+        val_loss, rase_val = val_fn(gen=gen, loader=val_loader, l1_loss=L1_LOSS)
         run["val_loss"].log(value=val_loss, step=step)
         run["RASE"].log(value=rase_val, step=step)
     
     run.stop()
-
     print("\nTraining done.\n")
 
 def log_loss(run, loss):
     # Neptune log
-    run["gen_loss"].log(loss['gen_loss'])
-    run["dis_loss"].log(loss['dis_loss'])
-    run['gen_l1_loss'].log(loss['gen_l1_loss'])
-    run['gen_gan_loss'].log(loss['gen_gan_loss'])
-    run['gen_spec_loss'].log(loss['gen_spec_loss'])
-    run['gen_lfm_loss'].log(loss['gen_lfm_loss'])
-    run['dis_real'].log(loss['dis_real'])
-    run['dis_fake'].log(loss['dis_fake'])
+    run["gen/loss"].log(loss['gen_loss'])
+    run["dis/loss"].log(loss['dis_loss'])
+    run['gen/l1_loss'].log(loss['gen_l1_loss'])
+    run['gen/gan_loss'].log(loss['gen_gan_loss'])
+    run['gen/spec_loss'].log(loss['gen_spec_loss'])
+    run['gen/lfm_loss'].log(loss['gen_lfm_loss'])
+    run['dis/real'].log(loss['dis_real'])
+    run['dis/fake'].log(loss['dis_fake'])
 
 if __name__ == "__main__":
     start = time.time()

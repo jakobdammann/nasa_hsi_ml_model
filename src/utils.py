@@ -4,30 +4,30 @@ from torchvision.utils import save_image
 import numpy as np
 import matplotlib.pyplot as plt
 from RGB.HSI2RGB import HSI2RGB
-from torchmetrics.image import RelativeAverageSpectralError
+from torchmetrics.functional.image import relative_average_spectral_error
 
-def save_some_examples(gen, val_loader, epoch, step, run):
-    x, y = next(iter(val_loader))
-    x, y = x.to(config.DEVICE), y.to(config.DEVICE)
-    gen.eval()
-    with torch.no_grad():
-        y_fake = gen(x)
-        y_fake = y_fake.cpu().numpy() * 0.5 + 0.5  # remove normalization#
-        y = y.cpu().numpy() * 0.5 + 0.5
-        # Pyplot
-        fig, ax = plt.subplots(2, 3, figsize=(10,7))
-        fig.suptitle(f"Example Images, Epoch {epoch+1}")
-        for i in range(3):
-            RASE = RelativeAverageSpectralError()
-            ax[0,i].imshow(reconstruct_rgb(y[i]))
+def log_examples(gen, val_loader, epoch, step, run):
+    fig, ax = plt.subplots(2, 3, figsize=(10,7))
+    fig.suptitle(f"Example Images, Epoch {epoch+1}")
+
+    for i, (x, y) in enumerate(val_loader):
+        x, y = x.to(config.DEVICE), y.to(config.DEVICE)
+        gen.eval()
+        with torch.no_grad():
+            y_fake = gen(x)
+            RASE_val = relative_average_spectral_error(y_fake, y).mean().item()
+            y_fake = y_fake.cpu().numpy() * 0.5 + 0.5  # remove normalization
+            y = y.cpu().numpy() * 0.5 + 0.5
+            # Pyplot
+            ax[0,i].imshow(reconstruct_rgb(y[0]))
             ax[0,i].set_title("Ground Truth")
             ax[0,i].set_axis_off()
-            ax[1,i].imshow(reconstruct_rgb(y_fake[i]))
-            ax[1,i].set_title(f"Generated Image, RASE={RASE(y_fake[i], y[i]):.2f}")
+            ax[1,i].imshow(reconstruct_rgb(y_fake[0]))
+            ax[1,i].set_title(f"Gen. Img, RASE={RASE_val:.1f}")
             ax[1,i].set_axis_off()
-        plt.tight_layout()
-        run[f"examples"].append(value=fig, step=step)
-        print("Uploaded example plot.")
+            print("Uploaded example plot.")
+    plt.subplots_adjust(hspace=0.3)
+    run[f"examples"].append(value=fig, step=step)
     gen.train()
 
 def reconstruct_rgb(img):
