@@ -2,10 +2,7 @@ import numpy as np
 import config
 import os
 import tifffile
-import torch
 from torch.utils.data import Dataset, DataLoader
-import torch.nn.functional as f
-import matplotlib.pyplot as plt
 import volumentations.volumentations as v
 
 

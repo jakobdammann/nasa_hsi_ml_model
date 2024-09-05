@@ -24,8 +24,8 @@ SPEC_LAMBDA = 50
 LFM_LAMBDA = 100
 
 # Training
-NUM_EPOCHS = 100
-LOAD_MODEL = False
+NUM_EPOCHS = 3
+LOAD_MODEL = True
 SAVE_MODEL = True
 CHECKPOINT_DISC = "model/disc.pth.tar"
 CHECKPOINT_GEN = "model/gen.pth.tar"

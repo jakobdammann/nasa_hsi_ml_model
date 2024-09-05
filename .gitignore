@@ -4,6 +4,7 @@
 
 .conda/
 .neptune/
+pix2pix/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
