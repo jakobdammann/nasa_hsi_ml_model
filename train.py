@@ -13,7 +13,7 @@ import time
 
 import config
 from src.dataset import Dataset
-from src.generator_model import Generator
+from src.unet_model import Generator
 from src.discriminator_model import Discriminator
 
 torch.backends.cudnn.benchmark = True

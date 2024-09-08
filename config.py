@@ -4,8 +4,8 @@ import torch
 # from albumentations.pytorch import ToTensorV2
 
 # Data Config
-TRAIN_DIR_X = "images//first_dataset//thorlabs"
-TRAIN_DIR_Y = "images//first_dataset//cubert"
+TRAIN_DIR_X = "images//display_dataset//thorlabs"
+TRAIN_DIR_Y = "images//display_dataset//cubert"
 VAL_DIR_X = "images//validation//thorlabs"
 VAL_DIR_Y = "images//validation//cubert"
 SHAPE_X = (1, 900, 900)
@@ -24,8 +24,8 @@ SPEC_LAMBDA = 50
 LFM_LAMBDA = 100
 
 # Training
-NUM_EPOCHS = 3
-LOAD_MODEL = True
+NUM_EPOCHS = 200
+LOAD_MODEL = False
 SAVE_MODEL = True
 CHECKPOINT_DISC = "model/disc.pth.tar"
 CHECKPOINT_GEN = "model/gen.pth.tar"

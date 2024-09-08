@@ -6,15 +6,18 @@ import torch.nn as nn
 
 from torchmetrics.image import SpectralAngleMapper
 from torchmetrics.functional import peak_signal_noise_ratio, accuracy, structural_similarity_index_measure
+from torchmetrics.functional.image import relative_average_spectral_error
 
 import config as c
 import src.utils as u
-from src.generator_model import Generator
+from src.unet_model import Generator as Unet
+from src.unet2d_model import Generator as Unet2D
 from src.discriminator_model import Discriminator
 
 class Pix2Pix(pl.LightningModule):
     def __init__(self, run):
         super(Pix2Pix, self).__init__()
+        # self.save_hyperparameters()
         # Important to disable automatic optimization as it 
         # will be done manually as there are two optimizators
         self.automatic_optimization = False
@@ -23,14 +26,9 @@ class Pix2Pix(pl.LightningModule):
 
         # Models
         self.discriminator = Discriminator(in_channels_x=c.SHAPE_X[0], in_channels_y=c.SHAPE_Y[0]).to(c.DEVICE)
-        self.generator = Generator(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
-        # Optimizer and Scheduler
-        # opt_disc = o.Adam(self.discriminator.parameters(), lr=c.LEARNING_RATE, betas=(0.5, 0.999))
-        # sched_disc = o.lr_scheduler.ExponentialLR(self.opt_disc, gamma=1.05)
-        # opt_gen = o.Adam(self.generator.parameters(), lr=c.LEARNING_RATE, betas=(0.5, 0.999))
-        # sched_gen = o.lr_scheduler.ExponentialLR(self.opt_disc, gamma=1.05)
-        # self.optimizers = (opt_gen, opt_disc)
-        # self.lr_schedulers = (sched_gen, sched_disc)
+        self.generator = Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
+        # self.generator = Unet2D(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
+
         # Loss Functions
         self.BCE = nn.BCEWithLogitsLoss()
         self.L1_LOSS = nn.L1Loss()
@@ -42,7 +40,7 @@ class Pix2Pix(pl.LightningModule):
     def forward(self, x):
         return self.generator(x)
     
-    def generator_loss(self, prediction_image, target_image, prediction_label, target_label):
+    def generator_loss(self, prediction_image, target_image, prediction_label, target_label, real_label):
         """
         Generator loss (a combination of): 
             1 - Binary Cross-Entropy
@@ -58,9 +56,9 @@ class Pix2Pix(pl.LightningModule):
         BCE_loss = self.BCE(prediction_label[0], torch.ones_like(target_label)) * c.ADV_LAMDA
         # LFM loss
         LFM_loss = torch.zeros((1,1,1,1)).to(c.DEVICE)
-        # LFM_weights = [1./16, 1./8, 1./4, 1./4, 1./2, 1.]
-        # for i, tensors in enumerate(zip(prediction_label[1], prediction_image[1])):
-        #     LFM_loss += self.L1_LOSS(tensors[0], tensors[1]) * LFM_weights[i] * c.LFM_LAMBDA
+        LFM_weights = [1./16, 1./8, 1./4, 1./4, 1./2, 1.]
+        for i, tensors in enumerate(zip(prediction_label[1], real_label[1])):
+            LFM_loss += self.L1_LOSS(tensors[0], tensors[1]) * LFM_weights[i] * c.LFM_LAMBDA
         # Other losses
         L1 = self.L1_LOSS(prediction_image, target_image) * c.L1_LAMBDA
         SPEC = self.SPECTRAL_LOSS(prediction_image, target_image) * c.SPEC_LAMBDA
@@ -85,11 +83,11 @@ class Pix2Pix(pl.LightningModule):
         Stochastic Gradient Descent with Warm Restarts is also added as learning scheduler (https://arxiv.org/abs/1608.03983)
         """
         # Optimizers
-        generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=self.generator_lr, weight_decay=1e-5)
-        discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=self.discriminator_lr, weight_decay=1e-5)
+        generator_optimizer = o.Adam(self.generator.parameters(), lr=self.generator_lr, weight_decay=1e-5)
+        discriminator_optimizer = o.Adam(self.discriminator.parameters(), lr=self.discriminator_lr, weight_decay=1e-5)
         # Learning Scheduler
-        generator_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(generator_optimizer, T_0=1000, T_mult=2)
-        discriminator_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(discriminator_optimizer, T_0=1000, T_mult=2)
+        generator_lr_scheduler = o.lr_scheduler.LinearLR(generator_optimizer, start_factor=1, end_factor=1e-6, total_iters=1e5)
+        discriminator_lr_scheduler = o.lr_scheduler.LinearLR(discriminator_optimizer, start_factor=1, end_factor=1e-6, total_iters=1e5)
         return [generator_optimizer, discriminator_optimizer], [generator_lr_scheduler, discriminator_lr_scheduler]
 
     def training_step(self, batch, batch_idx):
@@ -107,7 +105,7 @@ class Pix2Pix(pl.LightningModule):
         ######################################
         # Generator Feed-Forward
         generator_prediction = self.forward(image_i)
-        generator_prediction = torch.clip(generator_prediction, 0, 1)
+        #generator_prediction = torch.clip(generator_prediction, 0, 1)
         # Discriminator Feed-Forward
         discriminator_prediction_real = self.discriminator(image_i, target_i)
         discriminator_prediction_fake = self.discriminator(image_i, generator_prediction)
@@ -128,13 +126,15 @@ class Pix2Pix(pl.LightningModule):
         ##################################
         #  Generator Feed-Forward
         generator_prediction = self.forward(image_j)
-        generator_prediction = torch.clip(generator_prediction, 0, 1)
+        #generator_prediction = torch.clip(generator_prediction, 0, 1)
         # Discriminator Feed-Forward
         discriminator_prediction_fake = self.discriminator(image_j, generator_prediction)
+        discriminator_prediction_real = self.discriminator(image_i, target_i)
         # Generator loss
-        generator_bce_loss, generator_l1_loss, generator_spec_loss, generator_lfm_loss = self.generator_loss(generator_prediction, target_j,
-                                                                                        discriminator_prediction_fake,
-                                                                                        torch.ones_like(discriminator_prediction_fake[0]))
+        generator_loss_tuple = self.generator_loss(generator_prediction, target_j, discriminator_prediction_fake, 
+                                             torch.ones_like(discriminator_prediction_fake[0]), 
+                                             discriminator_prediction_real)
+        generator_bce_loss, generator_l1_loss, generator_spec_loss, generator_lfm_loss = generator_loss_tuple
         generator_loss = (generator_bce_loss * c.ADV_LAMDA) + (generator_l1_loss * c.L1_LAMBDA) + (generator_spec_loss * c.SPEC_LAMBDA) + (generator_lfm_loss * c.LFM_LAMBDA)
         # Generator Optimizer
         generator_optimizer.zero_grad()
@@ -144,36 +144,38 @@ class Pix2Pix(pl.LightningModule):
         
         # Progressbar and Logging
         current_loss = {}
-        current_loss["gen/loss"] = generator_loss.item()
-        current_loss["dis/loss"] = discriminator_loss.item()
-        current_loss['gen/l1_loss'] = generator_l1_loss.item()
-        current_loss['gen/gan_loss'] = generator_bce_loss.item()
-        current_loss['gen/spec_loss'] = generator_spec_loss.item()
-        current_loss['gen/lfm_loss'] = generator_lfm_loss.item()
-        current_loss['dis/label_real'] = discriminator_label_real.item()
-        current_loss['dis/label_fake'] = discriminator_label_fake.item()
-        current_loss['gen/lr'] = generator_lr_scheduler.get_last_lr()[0]
-        current_loss['dis/lr'] = discriminator_lr_scheduler.get_last_lr()[0]
-        self.log_loss(current_loss)
+        current_loss["train/gen/loss"] = generator_loss.item()
+        current_loss["train/dis/loss"] = discriminator_loss.item()
+        current_loss['train/gen/l1_loss'] = generator_l1_loss.item()
+        current_loss['train/gen/gan_loss'] = generator_bce_loss.item()
+        current_loss['train/gen/spec_loss'] = generator_spec_loss.item()
+        current_loss['train/gen/lfm_loss'] = generator_lfm_loss.item()
+        current_loss['train/dis/label_real'] = discriminator_label_real.item()
+        current_loss['train/dis/label_fake'] = discriminator_label_fake.item()
+        current_loss['train/gen/lr'] = generator_lr_scheduler.get_last_lr()[0]
+        current_loss['train/dis/lr'] = discriminator_lr_scheduler.get_last_lr()[0]
+        self.log_dict(current_loss)
 
         return current_loss
     
-    def log_loss(self, loss):
+    def log_dict(self, dic):
         # Neptune log
-        for key, value in loss.items():
-            self.run[key].log(value)
+        if self.run != None:
+            for key, value in dic.items():
+                self.run[key].log(value=value, step=self.global_step)
 
     def validation_step(self, batch, batch_idx):
         image, target = batch
         
         # Generator Feed-Forward
         generator_prediction = self.forward(image)
-        generator_prediction = torch.clip(generator_prediction, 0, 1)
+        #generator_prediction = torch.clip(generator_prediction, 0, 1)
         # Generator Metrics
         generator_psnr = peak_signal_noise_ratio(generator_prediction, target)
         generator_ssim = structural_similarity_index_measure(generator_prediction, target)
         discriminator_prediction_fake = self.discriminator(image, generator_prediction)
         generator_accuracy = accuracy(discriminator_prediction_fake[0], torch.ones_like(discriminator_prediction_fake[0], dtype=torch.int32), task='binary')
+        generator_rase = relative_average_spectral_error(generator_prediction.add(1), target.add(1))
         
         # Discriminator Feed-Forward
         discriminator_prediction_real = self.discriminator(image, target)
@@ -182,11 +184,16 @@ class Pix2Pix(pl.LightningModule):
         discriminator_accuracy = accuracy(discriminator_prediction_real[0], torch.ones_like(discriminator_prediction_real[0], dtype=torch.int32), task='binary') * 0.5 + \
                                 accuracy(discriminator_prediction_fake[0], torch.zeros_like(discriminator_prediction_fake[0], dtype=torch.int32), task='binary') * 0.5
             
-        # Progressbar and Logging
+        # Logging
         metrics = {'val/gen/psnr': generator_psnr, 'val/gen/ssim': generator_ssim, 
-                   'val/gen/accuracy': generator_accuracy, 'val/dis/accuracy': discriminator_accuracy}
-        for key, value in metrics.items():
-            self.run[key].log(value)
+                   'val/gen/accuracy': generator_accuracy, 'val/dis/accuracy': discriminator_accuracy,
+                   'val/gen/rase': generator_rase}
+        self.log_dict(metrics)
+
+        # Example images
+        plot = u.create_plot(generator_prediction, target, epoch=self.current_epoch)
+        if self.run != None:
+            self.run[f"examples"].append(value=plot, step=self.global_step)
         return metrics
 
 

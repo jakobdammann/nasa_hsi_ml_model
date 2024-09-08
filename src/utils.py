@@ -30,6 +30,25 @@ def log_examples(gen, val_loader, epoch, step, run):
     run[f"examples"].append(value=fig, step=step)
     gen.train()
 
+def create_plot(generator_prediction, target, epoch=0):
+    fig, ax = plt.subplots(2, 3, figsize=(10,7))
+    fig.suptitle(f"Example Images, Epoch {epoch+1}")
+
+    for i, (y_fake, y) in enumerate(zip(generator_prediction, target)):
+        RASE_val = relative_average_spectral_error(y_fake.unsqueeze(0).add(1), y.unsqueeze(0).add(1)).item()
+        y_fake = y_fake.cpu().numpy() * 0.5 + 0.5  # remove normalization
+        y = y.cpu().numpy() * 0.5 + 0.5
+        # Pyplot
+        ax[0,i].imshow(reconstruct_rgb(y))
+        ax[0,i].set_title("Ground Truth")
+        ax[0,i].set_axis_off()
+        ax[1,i].imshow(reconstruct_rgb(y_fake))
+        ax[1,i].set_title(f"Gen. Img. (RASE={RASE_val:.1f})")
+        ax[1,i].set_axis_off()
+        print("Uploaded example plot.")
+    plt.subplots_adjust(hspace=0.3)
+    return fig
+
 def reconstruct_rgb(img):
     wl = np.linspace(400,1000,config.SHAPE_Y[0]) # this may not be real values, just what looks best
     img = img.transpose(1,2,0)

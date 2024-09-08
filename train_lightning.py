@@ -5,6 +5,7 @@ import torch.optim as optim
 from torchmetrics.image import SpectralAngleMapper
 from torchmetrics.functional.image import relative_average_spectral_error
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -65,31 +66,24 @@ def main():
 
     # Definition of Model & Trainer
     model = Pix2Pix(run)
-    checkpoint_callback = pl.callbacks.model_checkpoint.ModelCheckpoint()
-    trainer = pl.Trainer(max_epochs=c.NUM_EPOCHS, val_check_interval=1.0, default_root_dir='./pix2pix/', 
-                         callbacks=[checkpoint_callback])
+    checkpoint_callback = ModelCheckpoint(dirpath="./model/", filename=f'trained_pix2pix-{{epoch:02d}}-{{step:02d}}')
+
+    trainer = pl.Trainer(max_epochs=c.NUM_EPOCHS, val_check_interval=1.0, 
+                         default_root_dir='./model/', callbacks=[checkpoint_callback])
 
     # Load model
     if c.LOAD_MODEL:
-        try:
-            checkpoint = sorted(glob.glob('./pix2pix/checkpoints/*.ckpt'), key=os.path.getmtime)[0]
-            checkpoint = torch.load(checkpoint)
-            model = Pix2Pix()
-            model.load_state_dict(checkpoint['state_dict'], strict=True)
-            print("Loaded last checkpoint.")
-        except:
-            print("Failed to load checkpoint from previous training.")
+        checkpoint = sorted(glob.glob('./model/*.ckpt'), key=os.path.getmtime)[0]
+        checkpoint = torch.load(checkpoint)
+        model.load_state_dict(checkpoint['state_dict'], strict=True)
+        print("Loaded last checkpoint.")
     
     # Load datasets
     train_dataset = Dataset(root_dir_x=c.TRAIN_DIR_X, root_dir_y=c.TRAIN_DIR_Y)
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=c.BATCH_SIZE,
-        shuffle=True,
-        num_workers=c.NUM_WORKERS,
-    )
+    train_loader = DataLoader(train_dataset, batch_size=c.BATCH_SIZE, shuffle=True, 
+                              num_workers=c.NUM_WORKERS)
     val_dataset = Dataset(root_dir_x=c.VAL_DIR_X, root_dir_y=c.VAL_DIR_Y)
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False)
 
     print("\nTraining...\n")
     start = time.time()

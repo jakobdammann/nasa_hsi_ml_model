@@ -27,13 +27,15 @@ class Dataset(Dataset):
         img_path_y = os.path.join(self.root_dir_y, img_file_y)
         image_y = np.array(tifffile.imread(img_path_y))
 
-        if config.RAW_TL_IMAGE == True:
+        if config.RAW_TL_IMAGE == True and image_x.shape[0] == 4:
             # recreate not demosaiced image out of the mosaic
             input_image = np.empty(shape=(1, *image_x[0].shape), dtype=np.float32)
             input_image[0, 0::2, 0::2] = image_x[0, 0::2, 0::2] # top left, 0 deg
             input_image[0, 0::2, 1::2] = image_x[1, 0::2, 1::2] # top right, 45 deg
             input_image[0, 1::2, 0::2] = image_x[3, 1::2, 0::2] # bottom left, 135 deg or -45 deg
             input_image[0, 1::2, 1::2] = image_x[2, 1::2, 1::2] # bottom right, 90 deg
+        elif config.RAW_TL_IMAGE == True and image_x.shape[0] == 5:
+            input_image = np.array([image_x[4].astype('float32')])
         else:
             # Take 135 deg polarization channel
             input_image = np.array([image_x[3].astype('float32')])
