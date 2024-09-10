@@ -16,7 +16,7 @@ n = 3
 def main():
     print(f"\nTesting... n={n}\n")
 
-    checkpoint = sorted(glob.glob('./model/*.ckpt'), key=os.path.getmtime)[0]
+    checkpoint = sorted(glob.glob('./model/*.ckpt'), key=os.path.getmtime, reverse=True)[0]
     checkpoint = torch.load(checkpoint)
     model = Pix2Pix(run=None)
     model.load_state_dict(checkpoint['state_dict'], strict=True)

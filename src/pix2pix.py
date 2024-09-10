@@ -86,8 +86,8 @@ class Pix2Pix(pl.LightningModule):
         generator_optimizer = o.Adam(self.generator.parameters(), lr=self.generator_lr, weight_decay=1e-5)
         discriminator_optimizer = o.Adam(self.discriminator.parameters(), lr=self.discriminator_lr, weight_decay=1e-5)
         # Learning Scheduler
-        generator_lr_scheduler = o.lr_scheduler.LinearLR(generator_optimizer, start_factor=1, end_factor=1e-6, total_iters=1e5)
-        discriminator_lr_scheduler = o.lr_scheduler.LinearLR(discriminator_optimizer, start_factor=1, end_factor=1e-6, total_iters=1e5)
+        generator_lr_scheduler = o.lr_scheduler.ExponentialLR(generator_optimizer, gamma=0.9996)
+        discriminator_lr_scheduler = o.lr_scheduler.ExponentialLR(discriminator_optimizer, gamma=0.9996)
         return [generator_optimizer, discriminator_optimizer], [generator_lr_scheduler, discriminator_lr_scheduler]
 
     def training_step(self, batch, batch_idx):

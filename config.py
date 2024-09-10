@@ -10,7 +10,7 @@ VAL_DIR_X = "images//validation//thorlabs"
 VAL_DIR_Y = "images//validation//cubert"
 SHAPE_X = (1, 900, 900)
 SHAPE_Y = (106, 42, 42)
-NEAR_SQUARE = 121 # change this when changing the spectral dimension
+NEAR_SQUARE = 121 # Nearest square number to the spectral dim of Y, change this when changing SHAPE_Y
 RAW_TL_IMAGE = True
 
 # Hyperparameters
@@ -24,7 +24,7 @@ SPEC_LAMBDA = 50
 LFM_LAMBDA = 100
 
 # Training
-NUM_EPOCHS = 200
+NUM_EPOCHS = 50
 LOAD_MODEL = False
 SAVE_MODEL = True
 CHECKPOINT_DISC = "model/disc.pth.tar"

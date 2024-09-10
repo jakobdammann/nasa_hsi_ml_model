@@ -20,25 +20,6 @@ from src.pix2pix import Pix2Pix
 
 torch.backends.cudnn.benchmark = True
 
-
-def val_fn(gen, loader, l1_loss):
-    loop = tqdm(loader, leave=True, mininterval=10)
-    n = len(loop)
-    loss = 0
-    rase = 0
-
-    for idx, (x, y) in enumerate(loop):
-        x = x.to(c.DEVICE)
-        y = y.to(c.DEVICE)
-
-        # Run generator
-        with torch.amp.autocast('cuda'):
-            y_fake = gen(x)
-            # Other losses
-            loss += l1_loss(y_fake, y) / n
-            rase += relative_average_spectral_error(y_fake, y).mean().item() / n
-    return loss, rase
-
 def main():
     print("\nLoading...\n")
 
@@ -73,7 +54,7 @@ def main():
 
     # Load model
     if c.LOAD_MODEL:
-        checkpoint = sorted(glob.glob('./model/*.ckpt'), key=os.path.getmtime)[0]
+        checkpoint = sorted(glob.glob('./model/*.ckpt'), key=os.path.getmtime, reverse=True)[0]
         checkpoint = torch.load(checkpoint)
         model.load_state_dict(checkpoint['state_dict'], strict=True)
         print("Loaded last checkpoint.")

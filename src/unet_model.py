@@ -60,8 +60,8 @@ class Generator(nn.Module):
     
     def forward(self, x):
         # Input: 1x900x900
-        p = self.pad(x) # 1x1024x1024
-        d1 = self.initial_down(p) # 64x512x512
+        #p = self.pad(x) # 1x1024x1024
+        d1 = self.initial_down(x) # 64x512x512
         d2 = self.down1(d1) # 128x256x256
         d3 = self.down2(d2) # 256x128x128
         d4 = self.down3(d3) # 512x64x64
@@ -89,10 +89,10 @@ class Generator(nn.Module):
         d1_ip = func.interpolate(d1, u6.shape[2:], mode='bilinear')
         u7 = self.final_up(torch.cat([u6, d1_ip], 1)) # 106x96x96    // 106x192x192
         #print("u7:", u7.shape)
-        ds = self.downsample(u7) # 106x48x48
+        #ds = self.downsample(u7) # 106x48x48
         #print("ds:", ds.shape)
-        crop = tv_func.crop(ds, 3, 3, 42, 42) # 106x42x42
-        return crop
+        #crop = tv_func.crop(ds, 3, 3, 42, 42) # 106x42x42
+        return u7
 
 def test():
     start=time.time()
