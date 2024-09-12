@@ -19,7 +19,7 @@ class Block(nn.Module):
         )
 
         self.use_dropout = use_dropout
-        self.dropout = nn.Dropout(0.0)
+        self.dropout = nn.Dropout(c.DROPOUT)
         self.down = down
 
     def forward(self, x):
@@ -30,8 +30,6 @@ class Block(nn.Module):
 class Generator(nn.Module):
     def __init__(self, in_channels=1, out_channels=3, features=64):
         super().__init__()
-
-        self.pad = nn.ReflectionPad2d(int((1024-900)/2))
 
         self.initial_down = nn.Sequential(
             nn.Conv2d(in_channels, features, 4, 2, 1, padding_mode="reflect"),
@@ -56,42 +54,35 @@ class Generator(nn.Module):
             nn.ConvTranspose2d(features * 2 + features, out_channels, kernel_size=3, stride=1, padding=1),
             nn.Tanh(),
         )
-        self.downsample = nn.Upsample(size=(48,48), mode='nearest')
     
     def forward(self, x):
         # Input: 1x900x900
-        #p = self.pad(x) # 1x1024x1024
-        d1 = self.initial_down(x) # 64x512x512
-        d2 = self.down1(d1) # 128x256x256
-        d3 = self.down2(d2) # 256x128x128
-        d4 = self.down3(d3) # 512x64x64
-        d5 = self.down4(d4) # 512x32x32
-        d6 = self.down5(d5) # 512x16x16
-        bottleneck = self.bottleneck(d6) # 512x8x8
-
-        u1 = self.up1(bottleneck) # 512x16x16
-        #print("u1:", u1.shape, "d6:", d6.shape)
+        d1 = self.initial_down(x) # 64x450x450
+        d2 = self.down1(d1) # 128x225x225
+        d3 = self.down2(d2) # 256x112x112
+        d4 = self.down3(d3) # 512x56x56
+        d5 = self.down4(d4) # 512x28x28
+        d6 = self.down5(d5) # 512x14x14
+        bottleneck = self.bottleneck(d6) # 512x7x7
+        u1 = self.up1(bottleneck) # 512x7x7
+        # print("u1:", u1.shape, "d6:", d6.shape)
         d6_ip = func.interpolate(d6, u1.shape[2:], mode='bilinear')
-        u2 = self.up2(torch.cat([u1, d6_ip], 1)) # 512x16x16
-        #print("u2:", u2.shape, "d5:", d5.shape)
+        u2 = self.up2(torch.cat([u1, d6_ip], 1)) # 512x7x7
+        # print("u2:", u2.shape, "d5:", d5.shape)
         d5_ip = func.interpolate(d5, u2.shape[2:], mode='bilinear')
-        u3 = self.up3(torch.cat([u2, d5_ip], 1)) # 512x32x32
-        #print("u3:", u3.shape, "d4:", d4.shape)
+        u3 = self.up3(torch.cat([u2, d5_ip], 1)) # 512x14x14
+        # print("u3:", u3.shape, "d4:", d4.shape)
         d4_ip = func.interpolate(d4, u3.shape[2:], mode='bilinear')
-        u4 = self.up4(torch.cat([u3, d4_ip], 1)) # 256x32x32
-        #print("u4:", u4.shape, "d3:", d3.shape)
+        u4 = self.up4(torch.cat([u3, d4_ip], 1)) # 256x14x14
+        # print("u4:", u4.shape, "d3:", d3.shape)
         d3_ip = func.interpolate(d3, u4.shape[2:], mode='bilinear')
-        u5 = self.up5(torch.cat([u4, d3_ip], 1)) # 256x96x96    // 256x64x64
-        #print("u5:", u5.shape, "d2:", d2.shape)
+        u5 = self.up5(torch.cat([u4, d3_ip], 1)) # 256x42x42    // 256x64x64
+        # print("u5:", u5.shape, "d2:", d2.shape)
         d2_ip = func.interpolate(d2, u5.shape[2:], mode='bilinear')
-        u6 = self.up6(torch.cat([u5, d2_ip], 1)) # 128x96x96     // 128x192x192 (192 is 4x48 and 3x64)
-        #print("u6:", u6.shape, "d1:", d1.shape)
+        u6 = self.up6(torch.cat([u5, d2_ip], 1)) # 128x42x42     // 128x192x192 (192 is 4x48 and 3x64)
+        # print("u6:", u6.shape, "d1:", d1.shape)
         d1_ip = func.interpolate(d1, u6.shape[2:], mode='bilinear')
-        u7 = self.final_up(torch.cat([u6, d1_ip], 1)) # 106x96x96    // 106x192x192
-        #print("u7:", u7.shape)
-        #ds = self.downsample(u7) # 106x48x48
-        #print("ds:", ds.shape)
-        #crop = tv_func.crop(ds, 3, 3, 42, 42) # 106x42x42
+        u7 = self.final_up(torch.cat([u6, d1_ip], 1)) # 106x42x42    // 106x192x192
         return u7
 
 def test():

@@ -16,8 +16,13 @@ RAW_TL_IMAGE = True
 # Hyperparameters
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 LEARNING_RATE = 2e-4
+LR_GAMMA = 0.99985
+LR_START_DECAY = 10000 # start exp decay after ?? steps
+DROPOUT = 0.2
+
 BATCH_SIZE = 1
 NUM_WORKERS = 2
+
 ADV_LAMDA = 1
 L1_LAMBDA = 30
 SPEC_LAMBDA = 50

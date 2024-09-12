@@ -35,7 +35,7 @@ def create_plot(generator_prediction, target, epoch=0):
     fig.suptitle(f"Example Images, Epoch {epoch+1}")
 
     for i, (y_fake, y) in enumerate(zip(generator_prediction[:3], target[:3])):
-        RASE_val = relative_average_spectral_error(y_fake.unsqueeze(0).add(1), y.unsqueeze(0).add(1)).item()
+        RASE_val = relative_average_spectral_error(y_fake.unsqueeze(0).add(1).mul(0.5), y.unsqueeze(0).add(1).mul(0.5)).item()
         y_fake = y_fake.cpu().numpy() * 0.5 + 0.5  # remove normalization
         y = y.cpu().numpy() * 0.5 + 0.5
         # Pyplot

@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from torchmetrics.image import SpectralAngleMapper
 from torchmetrics.functional import peak_signal_noise_ratio, accuracy, structural_similarity_index_measure
-from torchmetrics.functional.image import relative_average_spectral_error
+from torchmetrics.functional.image import relative_average_spectral_error, spectral_angle_mapper
 
 import config as c
 import src.utils as u
@@ -85,9 +85,15 @@ class Pix2Pix(pl.LightningModule):
         # Optimizers
         generator_optimizer = o.Adam(self.generator.parameters(), lr=self.generator_lr, weight_decay=1e-5)
         discriminator_optimizer = o.Adam(self.discriminator.parameters(), lr=self.discriminator_lr, weight_decay=1e-5)
-        # Learning Scheduler
-        generator_lr_scheduler = o.lr_scheduler.ExponentialLR(generator_optimizer, gamma=0.9996)
-        discriminator_lr_scheduler = o.lr_scheduler.ExponentialLR(discriminator_optimizer, gamma=0.9996)
+        # Learning Scheduler Generator
+        gen_const_lr = o.lr_scheduler.ConstantLR(generator_optimizer, factor=1.0)
+        gen_exp_lr = o.lr_scheduler.ExponentialLR(generator_optimizer, gamma=c.LR_GAMMA)
+        generator_lr_scheduler = o.lr_scheduler.SequentialLR(generator_optimizer, [gen_const_lr, gen_exp_lr], [c.LR_START_DECAY])
+        # Learning Scheduler Discriminator
+        dis_const_lr = o.lr_scheduler.ConstantLR(discriminator_optimizer, factor=1.0)
+        dis_exp_lr = o.lr_scheduler.ExponentialLR(discriminator_optimizer, gamma=c.LR_GAMMA)
+        discriminator_lr_scheduler = o.lr_scheduler.SequentialLR(discriminator_optimizer, [dis_const_lr, dis_exp_lr], [c.LR_START_DECAY])
+
         return [generator_optimizer, discriminator_optimizer], [generator_lr_scheduler, discriminator_lr_scheduler]
 
     def training_step(self, batch, batch_idx):
@@ -175,7 +181,8 @@ class Pix2Pix(pl.LightningModule):
         generator_ssim = structural_similarity_index_measure(generator_prediction, target)
         discriminator_prediction_fake = self.discriminator(image, generator_prediction)
         generator_accuracy = accuracy(discriminator_prediction_fake[0], torch.ones_like(discriminator_prediction_fake[0], dtype=torch.int32), task='binary')
-        generator_rase = relative_average_spectral_error(generator_prediction.add(1), target.add(1))
+        generator_rase = relative_average_spectral_error(generator_prediction.add(1).mul(0.5), target.add(1).mul(0.5))
+        generator_spectral_angle = spectral_angle_mapper(generator_prediction, target)
         
         # Discriminator Feed-Forward
         discriminator_prediction_real = self.discriminator(image, target)
@@ -187,13 +194,16 @@ class Pix2Pix(pl.LightningModule):
         # Logging
         metrics = {'val/gen/psnr': generator_psnr, 'val/gen/ssim': generator_ssim, 
                    'val/gen/accuracy': generator_accuracy, 'val/dis/accuracy': discriminator_accuracy,
-                   'val/gen/rase': generator_rase}
-        self.log_dict(metrics)
+                   'val/gen/rase': generator_rase, 'val/gen/sam': generator_spectral_angle}
+        if self.global_step != 0:
+            self.log_dict(metrics)
 
         # Example images
         plot = u.create_plot(generator_prediction, target, epoch=self.current_epoch)
         if self.run != None:
-            self.run[f"examples"].append(value=plot, step=self.global_step)
+            self.run[f"examples/example_list"].append(value=plot, step=self.global_step)
+            if self.current_epoch%20 == 0:
+                self.run[f"examples/example_{self.current_epoch}"].upload(plot)
         return metrics
 
 

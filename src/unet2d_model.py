@@ -19,7 +19,7 @@ class Block(nn.Module):
         )
 
         self.use_dropout = use_dropout
-        self.dropout = nn.Dropout(0.0)
+        self.dropout = nn.Dropout(c.DROPOUT)
         self.down = down
 
     def forward(self, x):

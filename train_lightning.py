@@ -38,6 +38,9 @@ def main():
               'Spectral_lambda': c.SPEC_LAMBDA,
               'LFM_lambda': c.LFM_LAMBDA,
               'Learning Rate': c.LEARNING_RATE,
+              'LR Gamma': c.LR_GAMMA,
+              'LR Start Decay': c.LR_START_DECAY,
+              'Dropout': c.DROPOUT,
               'Device': c.DEVICE,
               'Workers': c.NUM_WORKERS,
               'Load Model': c.LOAD_MODEL,
@@ -64,7 +67,7 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=c.BATCH_SIZE, shuffle=True, 
                               num_workers=c.NUM_WORKERS)
     val_dataset = Dataset(root_dir_x=c.VAL_DIR_X, root_dir_y=c.VAL_DIR_Y)
-    val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=15, shuffle=False)
 
     print("\nTraining...\n")
     start = time.time()

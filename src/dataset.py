@@ -44,9 +44,6 @@ class Dataset(Dataset):
         max = np.max(input_image)
         input_image = (input_image - min) / (max - min + 1e-12)
         input_image = 2 * input_image - 1
-        #utils.print_info(input_image, 'input_image')
-        #input_image = config.augm_2d(image=input_image)["image"]
-        #print("input_image.shape:", input_image.shape)
 
         target_image = image_y.astype('float32')
         # Resizing CB image if needed/wanted
@@ -58,11 +55,8 @@ class Dataset(Dataset):
         max = np.max(target_image)
         target_image = (target_image - min) / (max - min + 1e-12)
         target_image = 2 * target_image - 1
-        #utils.print_info(target_image, 'target_info')
-        #target_image = config.augm_3d(image=target_image)["image"]
-        #print("target_image.shape:", target_image.shape)
 
-        # augmentations commented out for now
+        # augmentations
 
         #augmentations = config.both_transform(image=input_image, image0=target_image)
         #input_image = augmentations["image"]
