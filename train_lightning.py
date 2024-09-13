@@ -1,14 +1,8 @@
 import torch
-from src.utils import save_checkpoint, load_checkpoint, log_examples
-import torch.nn as nn
-import torch.optim as optim
-from torchmetrics.image import SpectralAngleMapper
-from torchmetrics.functional.image import relative_average_spectral_error
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 import neptune
 import time
 import os
@@ -44,7 +38,8 @@ def main():
               'Device': c.DEVICE,
               'Workers': c.NUM_WORKERS,
               'Load Model': c.LOAD_MODEL,
-              'Save Model': c.SAVE_MODEL
+              'Save Model': c.SAVE_MODEL,
+              'Generator Model': c.GENERATOR_MODEL
               }
     run['parameters'] = params
 

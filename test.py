@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import config
 from src.dataset import Dataset
-from src.unet_model import Generator
+from src.models.unet_model import Generator
 from torch.utils.data import DataLoader
 from tifffile import imwrite
 import numpy as np

@@ -1,10 +1,12 @@
 import torch
-import config as c
-from src.dataset import Dataset
 from torch.utils.data import DataLoader
-from tifffile import imwrite
 import numpy as np
+from tifffile import imwrite
+
 from src.pix2pix import Pix2Pix
+from src.dataset import Dataset
+import config as c
+
 import glob
 import os
 

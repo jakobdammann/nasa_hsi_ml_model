@@ -3,8 +3,6 @@ Machine Learning Model for Diffractive Hyperspectral Imaging. The model can be t
 
 ## TODO
 
-- Test different LR scheduler
-- Try a Grad Scalar for optimizer
 - Try smaller Unet
 
 

@@ -15,6 +15,7 @@ RAW_TL_IMAGE = True
 
 # Hyperparameters
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+GENERATOR_MODEL = "unet" # unet, unet2d, fp_unet
 LEARNING_RATE = 2e-4
 LR_GAMMA = 0.99985
 LR_START_DECAY = 10000 # start exp decay after ?? steps

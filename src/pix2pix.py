@@ -10,9 +10,10 @@ from torchmetrics.functional.image import relative_average_spectral_error, spect
 
 import config as c
 import src.utils as u
-from src.unet_model import Generator as Unet
-from src.unet2d_model import Generator as Unet2D
-from src.discriminator_model import Discriminator
+from src.models.unet_model import Generator as Unet
+from src.models.unet2d_model import Generator as Unet2D
+from src.models.fp_unet_model import Generator as FP_Unet
+from src.models.discriminator_model import Discriminator
 
 class Pix2Pix(pl.LightningModule):
     def __init__(self, run):
@@ -26,8 +27,15 @@ class Pix2Pix(pl.LightningModule):
 
         # Models
         self.discriminator = Discriminator(in_channels_x=c.SHAPE_X[0], in_channels_y=c.SHAPE_Y[0]).to(c.DEVICE)
-        self.generator = Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
-        # self.generator = Unet2D(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
+        match c.GENERATOR_MODEL:
+            case "unet":
+                self.generator = Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
+            case "unet2d":
+                self.generator = Unet2D(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
+            case "fp_unet":
+                self.generator = FP_Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
+            case _:
+                print("No valid generator model defined.")
 
         # Loss Functions
         self.BCE = nn.BCEWithLogitsLoss()
