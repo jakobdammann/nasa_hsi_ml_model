@@ -152,7 +152,7 @@ class Pix2Pix(pl.LightningModule):
                                              torch.ones_like(discriminator_prediction_fake[0]), 
                                              discriminator_prediction_real)
         generator_bce_loss, generator_l1_loss, generator_spec_loss, generator_lfm_loss = generator_loss_tuple
-        generator_loss = (generator_bce_loss * c.ADV_LAMDA) + (generator_l1_loss * c.L1_LAMBDA) + (generator_spec_loss * c.SPEC_LAMBDA) + (generator_lfm_loss * c.LFM_LAMBDA)
+        generator_loss = generator_bce_loss + generator_l1_loss + generator_spec_loss + generator_lfm_loss
         # Generator Optimizer
         generator_optimizer.zero_grad()
         generator_loss.backward()
