@@ -1,9 +1,12 @@
-from tifffile import imread
+import numpy as np
 
-cb_raw = imread("test/cb_raw_0.tif")
-tl_raw = imread("test/tl_raw_0.tif")
-tl_gen = imread("test/tl_gen_0.tif")
+arr = np.array([])
+print(arr)
 
-print(cb_raw.shape)
-print(tl_raw.shape)
-print(tl_gen.shape)
+for i in range(10):
+    array = [1,2,3,51,12,5]
+    arr = np.append(arr, array)
+    arr.shape = (-1, len(array))
+    print(arr)
+
+print(arr)

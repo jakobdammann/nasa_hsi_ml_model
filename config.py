@@ -4,33 +4,36 @@ import torch
 # from albumentations.pytorch import ToTensorV2
 
 # Data Config
-TRAIN_DIR_X = "images//display_dataset//thorlabs"
-TRAIN_DIR_Y = "images//display_dataset//cubert"
-VAL_DIR_X = "images//validation//thorlabs"
-VAL_DIR_Y = "images//validation//cubert"
+NEPTUNE_PROJECT = "jakobdammann/HSI-Frosted-Plastic"
+TRAIN_DIR_X = "//scratch//general//nfs1/u6060933//frosted_plastic_dataset//train//thorlabs"
+TRAIN_DIR_Y = "//scratch//general//nfs1/u6060933//frosted_plastic_dataset//train//cubert"
+VAL_DIR_X = "//scratch//general//nfs1/u6060933//frosted_plastic_dataset//val//thorlabs"
+VAL_DIR_Y = "//scratch//general//nfs1/u6060933//frosted_plastic_dataset//val//cubert"
+MODEL_DIR = "//scratch//general//nfs1/u6060933//frosted_plastic_dataset"
 SHAPE_X = (1, 900, 900)
-SHAPE_Y = (106, 42, 42)
+SHAPE_Y = (106, 104, 104)
 NEAR_SQUARE = 121 # Nearest square number to the spectral dim of Y, change this when changing SHAPE_Y
 RAW_TL_IMAGE = True
 
 # Hyperparameters
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-GENERATOR_MODEL = "unet" # unet, unet2d, fp_unet
-LEARNING_RATE = 2e-4
-LR_GAMMA = 0.99985
-LR_START_DECAY = 10000 # start exp decay after ?? steps
-DROPOUT = 0.2
+GENERATOR_MODEL = "fp_unet" # unet, unet2d, fp_unet
+LEARNING_RATE = 1e-4 # Starting learning rate
+LR_GAMMA = 0.99985 # Gamma for exponential decay function
+LR_START_DECAY = 5000 # start exp decay after x steps
+DROPOUT = 0.2 # Dropout used for the generator
 
 BATCH_SIZE = 1
 NUM_WORKERS = 2
 
+# Generator loss function
 ADV_LAMDA = 1
 L1_LAMBDA = 30
 SPEC_LAMBDA = 50
 LFM_LAMBDA = 100
 
 # Training
-NUM_EPOCHS = 50
+NUM_EPOCHS = 3
 LOAD_MODEL = False
 SAVE_MODEL = True
 CHECKPOINT_DISC = "model/disc.pth.tar"

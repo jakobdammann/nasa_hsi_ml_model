@@ -7,6 +7,7 @@ import neptune
 import time
 import os
 import glob
+from datetime import datetime
 
 import config as c
 from src.dataset import Dataset
@@ -18,7 +19,7 @@ def main():
     print("\nLoading...\n")
 
     # Neptune
-    run = neptune.init_run(project="jakobdammann/NASA-HSI-ML-Model",
+    run = neptune.init_run(project=c.NEPTUNE_PROJECT,
                            capture_hardware_metrics=True,
                            capture_stderr=True,
                            capture_stdout=True,)
@@ -45,14 +46,15 @@ def main():
 
     # Definition of Model & Trainer
     model = Pix2Pix(run)
-    checkpoint_callback = ModelCheckpoint(dirpath="./model/", filename=f'trained_pix2pix-{{epoch:02d}}-{{step:02d}}')
+    checkpoint_callback = ModelCheckpoint(dirpath=c.MODEL_DIR, monitor='rase',
+                                          filename=f'pix2pix-{datetime.now()}-{{epoch:02d}}-{{step:02d}}')
 
-    trainer = pl.Trainer(max_epochs=c.NUM_EPOCHS, val_check_interval=1.0, 
-                         default_root_dir='./model/', callbacks=[checkpoint_callback])
+    trainer = pl.Trainer(max_epochs=c.NUM_EPOCHS, val_check_interval=0.2, 
+                         default_root_dir=c.MODEL_DIR, callbacks=[checkpoint_callback])
 
     # Load model
     if c.LOAD_MODEL:
-        checkpoint = sorted(glob.glob('./model/*.ckpt'), key=os.path.getmtime, reverse=True)[0]
+        checkpoint = sorted(glob.glob(c.MODEL_DIR + '/*.ckpt'), key=os.path.getmtime, reverse=True)[0]
         checkpoint = torch.load(checkpoint)
         model.load_state_dict(checkpoint['state_dict'], strict=True)
         print("Loaded last checkpoint.")
@@ -62,7 +64,7 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=c.BATCH_SIZE, shuffle=True, 
                               num_workers=c.NUM_WORKERS)
     val_dataset = Dataset(root_dir_x=c.VAL_DIR_X, root_dir_y=c.VAL_DIR_Y)
-    val_loader = DataLoader(val_dataset, batch_size=15, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False)
 
     print("\nTraining...\n")
     start = time.time()

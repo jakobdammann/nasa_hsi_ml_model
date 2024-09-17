@@ -65,22 +65,22 @@ class Generator(nn.Module):
         d6 = self.down5(d5) # 512x14x14
         bottleneck = self.bottleneck(d6) # 512x7x7
         u1 = self.up1(bottleneck) # 512x13x13
-        print("u1:", u1.shape, "d6:", d6.shape)
+        # print("u1:", u1.shape, "d6:", d6.shape)
         d6_ip = func.interpolate(d6, u1.shape[2:], mode='bilinear')
         u2 = self.up2(torch.cat([u1, d6_ip], 1)) # 512x26x26
-        print("u2:", u2.shape, "d5:", d5.shape)
+        # print("u2:", u2.shape, "d5:", d5.shape)
         d5_ip = func.interpolate(d5, u2.shape[2:], mode='bilinear')
         u3 = self.up3(torch.cat([u2, d5_ip], 1)) # 512x52x52
-        print("u3:", u3.shape, "d4:", d4.shape)
+        # print("u3:", u3.shape, "d4:", d4.shape)
         d4_ip = func.interpolate(d4, u3.shape[2:], mode='bilinear')
         u4 = self.up4(torch.cat([u3, d4_ip], 1)) # 256x52x52
-        print("u4:", u4.shape, "d3:", d3.shape)
+        # print("u4:", u4.shape, "d3:", d3.shape)
         d3_ip = func.interpolate(d3, u4.shape[2:], mode='bilinear')
         u5 = self.up5(torch.cat([u4, d3_ip], 1)) # 256x104x104
-        print("u5:", u5.shape, "d2:", d2.shape)
+        # print("u5:", u5.shape, "d2:", d2.shape)
         d2_ip = func.interpolate(d2, u5.shape[2:], mode='bilinear')
         u6 = self.up6(torch.cat([u5, d2_ip], 1)) # 128x104x104
-        print("u6:", u6.shape, "d1:", d1.shape)
+        # print("u6:", u6.shape, "d1:", d1.shape)
         d1_ip = func.interpolate(d1, u6.shape[2:], mode='bilinear')
         u7 = self.final_up(torch.cat([u6, d1_ip], 1)) # 106x104x104
         return u7

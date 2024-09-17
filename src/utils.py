@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from RGB.HSI2RGB import HSI2RGB
 from torchmetrics.functional.image import relative_average_spectral_error
 
+# unused
 def log_examples(gen, val_loader, epoch, step, run):
     fig, ax = plt.subplots(2, 3, figsize=(10,7))
     fig.suptitle(f"Example Images, Epoch {epoch+1}")
@@ -30,10 +31,11 @@ def log_examples(gen, val_loader, epoch, step, run):
     run[f"examples"].append(value=fig, step=step)
     gen.train()
 
-def create_plot(generator_prediction, target, epoch=0):
-    fig, ax = plt.subplots(2, 3, figsize=(10,7))
-    fig.suptitle(f"Example Images, Epoch {epoch+1}")
 
+def create_plot(generator_prediction, target, epoch=0, step=0):
+    fig, ax = plt.subplots(2, 3, figsize=(10,7))
+    fig.suptitle(f"Example Images, Epoch {epoch}, Step {step}")
+    # loop over first three images in batch
     for i, (y_fake, y) in enumerate(zip(generator_prediction[:3], target[:3])):
         RASE_val = relative_average_spectral_error(y_fake.unsqueeze(0).add(1).mul(0.5), y.unsqueeze(0).add(1).mul(0.5)).item()
         y_fake = y_fake.cpu().numpy() * 0.5 + 0.5  # remove normalization
@@ -47,16 +49,21 @@ def create_plot(generator_prediction, target, epoch=0):
         ax[1,i].set_axis_off()
         print("Uploaded example plot.")
     plt.subplots_adjust(hspace=0.3)
+    del RASE_val
+    del y_fake
+    del y
     return fig
 
+
 def reconstruct_rgb(img):
-    wl = np.linspace(400,1000,config.SHAPE_Y[0]) # this may not be real values, just what looks best
-    img = img.transpose(1,2,0)
+    wl = np.linspace(400, 1000, config.SHAPE_Y[0]) # this may not be real values, just what looks best
+    img = img.transpose(1, 2, 0)
     data = np.reshape(img, [-1, config.SHAPE_Y[0]])
-    RGB = HSI2RGB(wl, data, 42, 42, 65, 0.002)
+    RGB = HSI2RGB(wl, data, config.SHAPE_Y[1], config.SHAPE_Y[2], 65, 0.002)
     #RGB = RGB.transpose(2,0,1)
     return RGB
 
+# unused
 def save_checkpoint(model, optimizer, filename="my_checkpoint.pth.tar"):
     print("=> Saving checkpoint")
     checkpoint = {
@@ -65,7 +72,7 @@ def save_checkpoint(model, optimizer, filename="my_checkpoint.pth.tar"):
     }
     torch.save(checkpoint, filename)
 
-
+# unused
 def load_checkpoint(checkpoint_file, model, optimizer, lr):
     print("=> Loading checkpoint")
     checkpoint = torch.load(checkpoint_file, map_location=config.DEVICE, weights_only=True)

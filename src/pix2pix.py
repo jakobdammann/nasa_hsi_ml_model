@@ -1,8 +1,8 @@
 import pytorch_lightning as pl
 import torch
-import torch.nn.functional as F
 import torch.optim as o
 import torch.nn as nn
+import numpy as np
 
 from torchmetrics.image import SpectralAngleMapper
 from torchmetrics.functional import peak_signal_noise_ratio, accuracy, structural_similarity_index_measure
@@ -41,6 +41,9 @@ class Pix2Pix(pl.LightningModule):
         self.BCE = nn.BCEWithLogitsLoss()
         self.L1_LOSS = nn.L1Loss()
         self.SPECTRAL_LOSS = SpectralAngleMapper().to(c.DEVICE)
+
+        self.val_outputs = np.array([])
+        self.last_epoch_logged = -1
 
         # Neptune run
         self.run = run
@@ -198,22 +201,42 @@ class Pix2Pix(pl.LightningModule):
         # Discriminator Metrics
         discriminator_accuracy = accuracy(discriminator_prediction_real[0], torch.ones_like(discriminator_prediction_real[0], dtype=torch.int32), task='binary') * 0.5 + \
                                 accuracy(discriminator_prediction_fake[0], torch.zeros_like(discriminator_prediction_fake[0], dtype=torch.int32), task='binary') * 0.5
-            
-        # Logging
-        metrics = {'val/gen/psnr': generator_psnr, 'val/gen/ssim': generator_ssim, 
-                   'val/gen/accuracy': generator_accuracy, 'val/dis/accuracy': discriminator_accuracy,
-                   'val/gen/rase': generator_rase, 'val/gen/sam': generator_spectral_angle}
-        if self.global_step != 0:
-            self.log_dict(metrics)
+
+        # return everything that will be logged
+        stats = [generator_psnr.cpu(), generator_ssim.cpu(), generator_accuracy.cpu(), discriminator_accuracy.cpu(), generator_rase.cpu(), generator_spectral_angle.cpu()]
+        return stats, generator_prediction, target
+
+    def on_validation_batch_end(self, outputs, batch, batch_idx):
+        stats, generator_prediction, target = outputs
+
+        # save stats for epoch end
+        self.val_outputs = np.append(self.val_outputs, stats)
+        self.val_outputs.shape = (-1, len(stats))
 
         # Example images
-        plot = u.create_plot(generator_prediction, target, epoch=self.current_epoch)
-        if self.run != None:
-            self.run[f"examples/example_list"].append(value=plot, step=self.global_step)
-            if self.current_epoch%20 == 0:
-                self.run[f"examples/example_{self.current_epoch}"].upload(plot)
-        return metrics
+        if batch_idx == 0:
+            plot = u.create_plot(generator_prediction, target, epoch=self.current_epoch, step=self.global_step)
+            if self.run != None:
+                # save example to array
+                self.run[f"examples/example_array"].append(value=plot, step=self.global_step)
+                # save example for comparison
+                self.run[f"examples/example_epoch={self.current_epoch}_step={self.global_step}"].upload(plot)
+                self.last_epoch_logged = self.current_epoch
 
+    def on_validation_epoch_end(self):       
+        # Calculate mean of stats
+        metric_array = np.mean(self.val_outputs, axis=0)
+        
+        # Logging
+        metrics = {'val/gen/psnr': metric_array[0], 'val/gen/ssim': metric_array[1], 
+                   'val/gen/accuracy': metric_array[2], 'val/dis/accuracy': metric_array[3],
+                   'val/gen/rase': metric_array[4], 'val/gen/sam': metric_array[5]}
+        # log for Lightning monitoring
+        self.log('rase', metrics['val/gen/rase'])
+        # Log to neptune
+        if self.global_step != 0: # don't log the values if nothing has been trained
+            self.log_dict(metrics)
+        
 
 if __name__ == "__main__":
     pass
