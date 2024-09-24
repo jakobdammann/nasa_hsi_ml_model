@@ -19,11 +19,11 @@ RAW_TL_IMAGE = True
 
 # Hyperparameters
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-GENERATOR_MODEL = "fp_unet" # unet, unet2d, fp_unet
+GENERATOR_MODEL = "fp_unet" # unet, unet2d, fp_unet, simple_fp_unet
 LEARNING_RATE = 1e-4 # Starting learning rate
 LR_GAMMA = 0.9992 # Gamma for exponential decay function
 LR_START_DECAY = 750 # start exp decay after x steps
-DROPOUT = 0.2 # Dropout used for the generator
+DROPOUT = 0.5 # Dropout used for the generator
 
 BATCH_SIZE = 1
 NUM_WORKERS = 2
@@ -40,6 +40,6 @@ LAMBDA_SSIM = 25
 NUM_EPOCHS = 3
 LOAD_MODEL = False
 SAVE_MODEL = True
-LOG_IMAGES = False
+LOG_IMAGES = True
 # CHECKPOINT_DISC = "model/disc.pth.tar"
 # CHECKPOINT_GEN = "model/gen.pth.tar"

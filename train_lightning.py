@@ -70,7 +70,8 @@ def main():
     val_dataset = Dataset(root_dir_x=c.VAL_DIR_X, root_dir_y=c.VAL_DIR_Y)
     val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False)
 
-    print("\nTraining...\n")
+    run_id = run["sys/id"].fetch()
+    print(f"\nTraining {run_id}...\n")
     start = time.time()
 
     trainer.fit(model, train_loader, val_loader)

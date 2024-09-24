@@ -14,6 +14,7 @@ import src.utils as u
 from src.models.unet_model import Generator as Unet
 from src.models.unet2d_model import Generator as Unet2D
 from src.models.fp_unet_model import Generator as FP_Unet
+from src.models.simple_fp_unet_model import Generator as Simple_FP_Unet
 from src.models.discriminator_model import Discriminator
 
 from tifffile import tifffile
@@ -37,6 +38,8 @@ class Pix2Pix(pl.LightningModule):
                 self.generator = Unet2D(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
             case "fp_unet":
                 self.generator = FP_Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
+            case "simple_fp_unet":
+                self.generator = Simple_FP_Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
             case _:
                 print(f"Generator model {c.GENERATOR_MODEL} not defined.")
 
@@ -71,19 +74,19 @@ class Pix2Pix(pl.LightningModule):
                 Between weights from all layers of the discriminator
         """
         # Adverserial loss
-        BCE_loss = self.BCE(prediction_label[0], torch.ones_like(target_label)) * c.LAMBDA_ADV
+        BCE_loss = self.BCE(prediction_label[0], torch.ones_like(target_label))
         # LFM loss
         LFM_loss = torch.zeros((1,1,1,1)).to(c.DEVICE)
         LFM_weights = [1./16, 1./8, 1./4, 1./4, 1./2, 1.]
         for i, tensors in enumerate(zip(prediction_label[1], real_label[1])):
-            LFM_loss += func.l1_loss(tensors[0], tensors[1]) * LFM_weights[i] * c.LAMBDA_LFM
+            LFM_loss += func.l1_loss(tensors[0], tensors[1]) * LFM_weights[i]
         # Other losses
-        L1 = func.l1_loss(prediction_image, target_image) * c.LAMBDA_L1
-        SPEC = spectral_angle_mapper(prediction_image, target_image) * c.LAMBDA_SAM
-        RASE = u.rase_error(prediction_image.add(1).mul(0.5), target_image.add(1).mul(0.5)) * c.LAMBDA_RASE
-        SSIM_loss = -1 * u.ssim3D(prediction_image.unsqueeze(1).add(1).mul(0.5), target_image.unsqueeze(1).add(1).mul(0.5)) * c.LAMBDA_SSIM # adding dimension so 3D works correctly
+        L1 = func.l1_loss(prediction_image, target_image)
+        SPEC = spectral_angle_mapper(prediction_image, target_image)
+        RASE = u.rase_error(prediction_image.add(1).mul(0.5), target_image.add(1).mul(0.5))
+        SSIM = u.ssim3D(prediction_image.unsqueeze(1).add(1).mul(0.5), target_image.unsqueeze(1).add(1).mul(0.5)) # adding dimension so 3D works correctly
 
-        return BCE_loss, L1, SPEC, LFM_loss, RASE, SSIM_loss
+        return BCE_loss, L1, SPEC, LFM_loss, RASE, SSIM
 
     def discriminator_loss(self, prediction_label, target_label):
         """
@@ -158,8 +161,13 @@ class Pix2Pix(pl.LightningModule):
         gen_loss_tuple = self.generator_loss(generator_prediction, target_j, discriminator_prediction_fake, 
                                              torch.ones_like(discriminator_prediction_fake[0]), 
                                              discriminator_prediction_real)
-        gen_bce_loss, gen_l1_loss, gen_spec_loss, gen_lfm_loss, gen_rase_loss, gen_ssim_loss = gen_loss_tuple
-        generator_loss = gen_bce_loss + gen_l1_loss + gen_spec_loss + gen_lfm_loss + gen_rase_loss + gen_ssim_loss
+        gen_bce_loss, gen_l1_loss, gen_spec_loss, gen_lfm_loss, gen_rase_loss, gen_ssim = gen_loss_tuple
+        generator_loss = gen_bce_loss * c.LAMBDA_ADV 
+        generator_loss += gen_l1_loss * c.LAMBDA_L1
+        generator_loss += gen_spec_loss * c.LAMBDA_SAM
+        generator_loss += gen_lfm_loss * c.LAMBDA_LFM
+        generator_loss += gen_rase_loss * c.LAMBDA_RASE
+        generator_loss += gen_ssim * c.LAMBDA_SSIM * -1
         # Generator Optimizer
         generator_optimizer.zero_grad()
         generator_loss.backward()
@@ -174,7 +182,7 @@ class Pix2Pix(pl.LightningModule):
         current_loss['train/gen/loss_sam'] = gen_spec_loss.item()
         current_loss['train/gen/loss_lfm'] = gen_lfm_loss.item()
         current_loss['train/gen/loss_rase'] = gen_rase_loss.item()
-        current_loss['train/gen/loss_ssim'] = gen_ssim_loss.item()
+        current_loss['train/gen/loss_ssim'] = gen_ssim.item()
         current_loss['train/gen/lr'] = generator_lr_scheduler.get_last_lr()[0]
         current_loss["train/dis/loss"] = discriminator_loss.item()
         current_loss['train/dis/loss_real'] = discriminator_label_real.item()
@@ -231,7 +239,7 @@ class Pix2Pix(pl.LightningModule):
             # save example for comparison
             self.run[f"examples/example_epoch={self.current_epoch}_step={self.global_step}"].upload(plot)
             self.last_epoch_logged = self.current_epoch
-            plt.close(plot)
+            # plt.close(plot)
             print("Uploaded example plot")
 
     def on_validation_epoch_end(self):
@@ -248,7 +256,10 @@ class Pix2Pix(pl.LightningModule):
         # Log to neptune
         if self.global_step != 0: # don't log the values if nothing has been trained
             self.log_dict(metrics)
-        
+
+    def on_train_epoch_end(self):
+        super().on_train_epoch_end()
+        torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     pass

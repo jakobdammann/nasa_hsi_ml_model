@@ -33,7 +33,7 @@ def log_examples(gen, val_loader, epoch, step, run):
 
 
 def create_plot(generator_prediction, target, epoch=0, step=0):
-    fig, ax = plt.subplots(2, 3, figsize=(10,7))
+    fig, ax = plt.subplots(2, 3, figsize=(10,7), num=1, clear=True) # parameters so that no memory leak occurs
     fig.suptitle(f"Example Images, Epoch {epoch}, Step {step}")
     # loop over first three images in batch
     for i, (y_fake, y) in enumerate(zip(generator_prediction[:3], target[:3])):
