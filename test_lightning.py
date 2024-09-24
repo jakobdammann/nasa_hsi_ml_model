@@ -24,7 +24,7 @@ def main():
     model = Pix2Pix(run=None)
     model.load_state_dict(checkpoint['state_dict'], strict=True)
 
-    val_dataset = Dataset(root_dir_x=c.VAL_DIR_X, root_dir_y=c.VAL_DIR_Y)
+    val_dataset = Dataset(root_dir_x=c.TEST_DIR_X, root_dir_y=c.TEST_DIR_Y)
     val_loader = DataLoader(val_dataset, batch_size=n, shuffle=False)
 
     x, y = next(iter(val_loader))

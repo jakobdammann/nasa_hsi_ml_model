@@ -2,9 +2,10 @@ import pytorch_lightning as pl
 import torch
 import torch.optim as o
 import torch.nn as nn
+import torch.nn.functional as func
 import numpy as np
+import matplotlib.pyplot as plt
 
-from torchmetrics.image import SpectralAngleMapper
 from torchmetrics.functional import peak_signal_noise_ratio, accuracy, structural_similarity_index_measure
 from torchmetrics.functional.image import relative_average_spectral_error, spectral_angle_mapper
 
@@ -14,6 +15,8 @@ from src.models.unet_model import Generator as Unet
 from src.models.unet2d_model import Generator as Unet2D
 from src.models.fp_unet_model import Generator as FP_Unet
 from src.models.discriminator_model import Discriminator
+
+from tifffile import tifffile
 
 class Pix2Pix(pl.LightningModule):
     def __init__(self, run):
@@ -35,15 +38,19 @@ class Pix2Pix(pl.LightningModule):
             case "fp_unet":
                 self.generator = FP_Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
             case _:
-                print("No valid generator model defined.")
+                print(f"Generator model {c.GENERATOR_MODEL} not defined.")
 
         # Loss Functions
+        # (now using "functional" to minimize gpu memory)
         self.BCE = nn.BCEWithLogitsLoss()
-        self.L1_LOSS = nn.L1Loss()
-        self.SPECTRAL_LOSS = SpectralAngleMapper().to(c.DEVICE)
+        # self.L1_LOSS = nn.L1Loss()
+        # self.SPECTRAL_LOSS = SpectralAngleMapper()
+        # self.RASE_LOSS = RelativeAverageSpectralError()
+        # self.SSIM_LOSS = StructuralSimilarityIndexMeasure()
 
         self.val_outputs = np.array([])
         self.last_epoch_logged = -1
+        self.test_var = 0
 
         # Neptune run
         self.run = run
@@ -64,18 +71,20 @@ class Pix2Pix(pl.LightningModule):
                 Between weights from all layers of the discriminator
         """
         # Adverserial loss
-        BCE_loss = self.BCE(prediction_label[0], torch.ones_like(target_label)) * c.ADV_LAMDA
+        BCE_loss = self.BCE(prediction_label[0], torch.ones_like(target_label)) * c.LAMBDA_ADV
         # LFM loss
         LFM_loss = torch.zeros((1,1,1,1)).to(c.DEVICE)
         LFM_weights = [1./16, 1./8, 1./4, 1./4, 1./2, 1.]
         for i, tensors in enumerate(zip(prediction_label[1], real_label[1])):
-            LFM_loss += self.L1_LOSS(tensors[0], tensors[1]) * LFM_weights[i] * c.LFM_LAMBDA
+            LFM_loss += func.l1_loss(tensors[0], tensors[1]) * LFM_weights[i] * c.LAMBDA_LFM
         # Other losses
-        L1 = self.L1_LOSS(prediction_image, target_image) * c.L1_LAMBDA
-        SPEC = self.SPECTRAL_LOSS(prediction_image, target_image) * c.SPEC_LAMBDA
+        L1 = func.l1_loss(prediction_image, target_image) * c.LAMBDA_L1
+        SPEC = spectral_angle_mapper(prediction_image, target_image) * c.LAMBDA_SAM
+        RASE = u.rase_error(prediction_image.add(1).mul(0.5), target_image.add(1).mul(0.5)) * c.LAMBDA_RASE
+        SSIM_loss = -1 * u.ssim3D(prediction_image.unsqueeze(1).add(1).mul(0.5), target_image.unsqueeze(1).add(1).mul(0.5)) * c.LAMBDA_SSIM # adding dimension so 3D works correctly
 
-        return BCE_loss, L1, SPEC, LFM_loss
-    
+        return BCE_loss, L1, SPEC, LFM_loss, RASE, SSIM_loss
+
     def discriminator_loss(self, prediction_label, target_label):
         """
         Discriminator loss: 
@@ -122,7 +131,6 @@ class Pix2Pix(pl.LightningModule):
         ######################################
         # Generator Feed-Forward
         generator_prediction = self.forward(image_i)
-        #generator_prediction = torch.clip(generator_prediction, 0, 1)
         # Discriminator Feed-Forward
         discriminator_prediction_real = self.discriminator(image_i, target_i)
         discriminator_prediction_fake = self.discriminator(image_i, generator_prediction)
@@ -143,16 +151,15 @@ class Pix2Pix(pl.LightningModule):
         ##################################
         #  Generator Feed-Forward
         generator_prediction = self.forward(image_j)
-        #generator_prediction = torch.clip(generator_prediction, 0, 1)
         # Discriminator Feed-Forward
         discriminator_prediction_fake = self.discriminator(image_j, generator_prediction)
         discriminator_prediction_real = self.discriminator(image_i, target_i)
         # Generator loss
-        generator_loss_tuple = self.generator_loss(generator_prediction, target_j, discriminator_prediction_fake, 
+        gen_loss_tuple = self.generator_loss(generator_prediction, target_j, discriminator_prediction_fake, 
                                              torch.ones_like(discriminator_prediction_fake[0]), 
                                              discriminator_prediction_real)
-        generator_bce_loss, generator_l1_loss, generator_spec_loss, generator_lfm_loss = generator_loss_tuple
-        generator_loss = generator_bce_loss + generator_l1_loss + generator_spec_loss + generator_lfm_loss
+        gen_bce_loss, gen_l1_loss, gen_spec_loss, gen_lfm_loss, gen_rase_loss, gen_ssim_loss = gen_loss_tuple
+        generator_loss = gen_bce_loss + gen_l1_loss + gen_spec_loss + gen_lfm_loss + gen_rase_loss + gen_ssim_loss
         # Generator Optimizer
         generator_optimizer.zero_grad()
         generator_loss.backward()
@@ -162,14 +169,16 @@ class Pix2Pix(pl.LightningModule):
         # Progressbar and Logging
         current_loss = {}
         current_loss["train/gen/loss"] = generator_loss.item()
-        current_loss["train/dis/loss"] = discriminator_loss.item()
-        current_loss['train/gen/l1_loss'] = generator_l1_loss.item()
-        current_loss['train/gen/gan_loss'] = generator_bce_loss.item()
-        current_loss['train/gen/spec_loss'] = generator_spec_loss.item()
-        current_loss['train/gen/lfm_loss'] = generator_lfm_loss.item()
-        current_loss['train/dis/label_real'] = discriminator_label_real.item()
-        current_loss['train/dis/label_fake'] = discriminator_label_fake.item()
+        current_loss['train/gen/loss_1'] = gen_l1_loss.item()
+        current_loss['train/gen/loss_adv'] = gen_bce_loss.item()
+        current_loss['train/gen/loss_sam'] = gen_spec_loss.item()
+        current_loss['train/gen/loss_lfm'] = gen_lfm_loss.item()
+        current_loss['train/gen/loss_rase'] = gen_rase_loss.item()
+        current_loss['train/gen/loss_ssim'] = gen_ssim_loss.item()
         current_loss['train/gen/lr'] = generator_lr_scheduler.get_last_lr()[0]
+        current_loss["train/dis/loss"] = discriminator_loss.item()
+        current_loss['train/dis/loss_real'] = discriminator_label_real.item()
+        current_loss['train/dis/loss_fake'] = discriminator_label_fake.item()
         current_loss['train/dis/lr'] = discriminator_lr_scheduler.get_last_lr()[0]
         self.log_dict(current_loss)
 
@@ -186,14 +195,15 @@ class Pix2Pix(pl.LightningModule):
         
         # Generator Feed-Forward
         generator_prediction = self.forward(image)
-        #generator_prediction = torch.clip(generator_prediction, 0, 1)
         # Generator Metrics
         generator_psnr = peak_signal_noise_ratio(generator_prediction, target)
         generator_ssim = structural_similarity_index_measure(generator_prediction, target)
         discriminator_prediction_fake = self.discriminator(image, generator_prediction)
         generator_accuracy = accuracy(discriminator_prediction_fake[0], torch.ones_like(discriminator_prediction_fake[0], dtype=torch.int32), task='binary')
-        generator_rase = relative_average_spectral_error(generator_prediction.add(1).mul(0.5), target.add(1).mul(0.5))
         generator_spectral_angle = spectral_angle_mapper(generator_prediction, target)
+        generator_rase = u.rase_error(generator_prediction.add(1).mul(0.5), target.add(1).mul(0.5))
+        generator_ssim3D = u.ssim3D(generator_prediction.unsqueeze(1).add(1).mul(0.5), target.unsqueeze(1).add(1).mul(0.5))
+        # print(generator_rase.size(), generator_ssim3D.size(), generator_spectral_angle.size())
         
         # Discriminator Feed-Forward
         discriminator_prediction_real = self.discriminator(image, target)
@@ -203,7 +213,7 @@ class Pix2Pix(pl.LightningModule):
                                 accuracy(discriminator_prediction_fake[0], torch.zeros_like(discriminator_prediction_fake[0], dtype=torch.int32), task='binary') * 0.5
 
         # return everything that will be logged
-        stats = [generator_psnr.cpu(), generator_ssim.cpu(), generator_accuracy.cpu(), discriminator_accuracy.cpu(), generator_rase.cpu(), generator_spectral_angle.cpu()]
+        stats = [generator_psnr.cpu(), generator_ssim.cpu(), generator_accuracy.cpu(), discriminator_accuracy.cpu(), generator_rase.cpu(), generator_spectral_angle.cpu(), generator_ssim3D.cpu()]
         return stats, generator_prediction, target
 
     def on_validation_batch_end(self, outputs, batch, batch_idx):
@@ -214,23 +224,25 @@ class Pix2Pix(pl.LightningModule):
         self.val_outputs.shape = (-1, len(stats))
 
         # Example images
-        if batch_idx == 0:
+        if batch_idx == 0 and self.run != None and c.LOG_IMAGES == True:
             plot = u.create_plot(generator_prediction, target, epoch=self.current_epoch, step=self.global_step)
-            if self.run != None:
-                # save example to array
-                self.run[f"examples/example_array"].append(value=plot, step=self.global_step)
-                # save example for comparison
-                self.run[f"examples/example_epoch={self.current_epoch}_step={self.global_step}"].upload(plot)
-                self.last_epoch_logged = self.current_epoch
+            # save example to array
+            self.run[f"examples/example_array"].append(value=plot, step=self.global_step)
+            # save example for comparison
+            self.run[f"examples/example_epoch={self.current_epoch}_step={self.global_step}"].upload(plot)
+            self.last_epoch_logged = self.current_epoch
+            plt.close(plot)
+            print("Uploaded example plot")
 
-    def on_validation_epoch_end(self):       
+    def on_validation_epoch_end(self):
         # Calculate mean of stats
         metric_array = np.mean(self.val_outputs, axis=0)
         
         # Logging
         metrics = {'val/gen/psnr': metric_array[0], 'val/gen/ssim': metric_array[1], 
                    'val/gen/accuracy': metric_array[2], 'val/dis/accuracy': metric_array[3],
-                   'val/gen/rase': metric_array[4], 'val/gen/sam': metric_array[5]}
+                   'val/gen/rase': metric_array[4], 'val/gen/sam': metric_array[5],
+                   'val/gen/ssim3D': metric_array[6]}
         # log for Lightning monitoring
         self.log('rase', metrics['val/gen/rase'])
         # Log to neptune

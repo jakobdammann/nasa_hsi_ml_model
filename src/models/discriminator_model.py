@@ -68,7 +68,10 @@ class Discriminator(nn.Module):
         diff = c.NEAR_SQUARE - c.SHAPE_Y[0]
         y = nn.functional.pad(y, (0,0,0,0,0,diff), mode='replicate', value=0) # 121x42x42 (mode=replicate or constant)
         y = nn.functional.pixel_shuffle(y, self.sqrt) # 1x462x462
-        y = nn.functional.interpolate(y, x.shape[2:], mode='nearest') # 1x900x900
+        if y.shape[-1] < x.shape[-1]: # interpolate smaller tensor to bigger tensor
+            y = nn.functional.interpolate(y, x.shape[2:], mode='nearest') # 1x900x900
+        else:
+            x = nn.functional.interpolate(x, y.shape[2:], mode='nearest') # 1x900x900
         x = torch.cat([x, y], dim=1) # 2x900x900
         x = self.initial(x) # 64x450x450
         x0 = []
@@ -85,9 +88,9 @@ class Discriminator(nn.Module):
 
 def test():
     x = torch.randn((1, 1, 900, 900))
-    y = torch.randn((1, 3, 42, 42))
-    c.SHAPE_Y = (3,42,42)
-    c.NEAR_SQUARE = 4
+    y = torch.randn((1, 106, 104, 104))
+    c.SHAPE_Y = (106,104,104)
+    c.NEAR_SQUARE = 121
     model = Discriminator(in_channels_x=1, in_channels_y=106)
     preds = model(x, y)
     #print("\nModel:\n", model)
