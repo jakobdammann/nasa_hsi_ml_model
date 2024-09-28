@@ -15,9 +15,8 @@ from src.models.unet_model import Generator as Unet
 from src.models.unet2d_model import Generator as Unet2D
 from src.models.fp_unet_model import Generator as FP_Unet
 from src.models.simple_fp_unet_model import Generator as Simple_FP_Unet
+from src.models.outside_fp_unet_model import Generator as Outside_FP_Unet
 from src.models.discriminator_model import Discriminator
-
-from tifffile import tifffile
 
 class Pix2Pix(pl.LightningModule):
     def __init__(self, run):
@@ -40,6 +39,8 @@ class Pix2Pix(pl.LightningModule):
                 self.generator = FP_Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
             case "simple_fp_unet":
                 self.generator = Simple_FP_Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
+            case "outside_fp_unet":
+                self.generator = Outside_FP_Unet(in_channels=c.SHAPE_X[0], out_channels=c.SHAPE_Y[0], features=64).to(c.DEVICE)
             case _:
                 print(f"Generator model {c.GENERATOR_MODEL} not defined.")
 
@@ -165,7 +166,7 @@ class Pix2Pix(pl.LightningModule):
         generator_loss = gen_bce_loss * c.LAMBDA_ADV 
         generator_loss += gen_l1_loss * c.LAMBDA_L1
         generator_loss += gen_spec_loss * c.LAMBDA_SAM
-        generator_loss += gen_lfm_loss * c.LAMBDA_LFM
+        generator_loss += gen_lfm_loss.item() * c.LAMBDA_LFM
         generator_loss += gen_rase_loss * c.LAMBDA_RASE
         generator_loss += gen_ssim * c.LAMBDA_SSIM * -1
         # Generator Optimizer
@@ -239,7 +240,7 @@ class Pix2Pix(pl.LightningModule):
             # save example for comparison
             self.run[f"examples/example_epoch={self.current_epoch}_step={self.global_step}"].upload(plot)
             self.last_epoch_logged = self.current_epoch
-            # plt.close(plot)
+            plt.close(plot)
             print("Uploaded example plot")
 
     def on_validation_epoch_end(self):
