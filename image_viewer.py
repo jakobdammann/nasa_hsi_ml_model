@@ -3,11 +3,17 @@ import numpy as np
 import tifffile
 import os
 from matplotlib import widgets
+import matplotlib.gridspec as gridspec
+from torchmetrics.image import RelativeAverageSpectralError
+from torchmetrics.functional.image import relative_average_spectral_error
+from torchmetrics.image import SpectralAngleMapper
+import torch
 
 # Folder paths for images
-thorlabs_image_folder = 'test/imgs'
-cubert_image_folder = 'test/imgs'
-gen_image_folder = 'test/imgs'
+thorlabs_image_folder = 'nasa_hsi_ml_model/test/imgs'
+cubert_image_folder = 'nasa_hsi_ml_model/test/imgs'
+gen_image_folder = 'nasa_hsi_ml_model/test/imgs'
+
 
 # List available files in each folder
 thorlabs_files = sorted([f for f in os.listdir(thorlabs_image_folder) if f.endswith(".tif") and f.startswith("tl_raw")])
@@ -63,7 +69,7 @@ def update_cb_plot(cb_file, channel):
     img = cb_image[channel, :, :]
     im_cb = ax_cb.imshow(img, cmap='viridis')
     wavelength = wavelengths[channel]
-    ax_cb.set_title(f"HS Ground Truth: {cb_file} (Channel {channel}/{cb_image.shape[0]-1}, {wavelength:.1f} nm)")
+    ax_cb.set_title(f"Ground Truth: {cb_file} (Channel {channel}/{cb_image.shape[0]-1}, {wavelength:.1f} nm)")
     ax_cb.annotate(f"Channel Stats: \nSNR: {snr(img):.2f}, Min: {np.min(img):.2f}, Max: {np.max(img):.2f}, Avg: {np.mean(img):.2f}, Std: {np.std(img):.2f}", 
                    (-0.05,-0.18), xycoords='axes fraction')
     # create or update colorbars
@@ -111,7 +117,7 @@ def update_gen_plot(gen_file, channel):
     img = gen_image[channel, :, :]
     im_gen = ax_gen.imshow(img, cmap='viridis')
     wavelength = wavelengths[channel]
-    ax_gen.set_title(f"Output: {gen_file} (Channel {channel}/{gen_image.shape[0]-1}, {wavelength:.1f} nm)")
+    ax_gen.set_title(f"Generated: {gen_file} (Channel {channel}/{gen_image.shape[0]-1}, {wavelength:.1f} nm)")
     ax_gen.annotate(f"Channel Stats: \nSNR: {snr(img):.2f}, Min: {np.min(img):.2f}, Max: {np.max(img):.2f}, Avg: {np.mean(img):.2f}, Std: {np.std(img):.2f}", 
                    (-0.05,-0.18), xycoords='axes fraction')
     # create or update colorbars
@@ -220,12 +226,54 @@ def prev_image(_):
     update_gen_plot(current_gen_file, current_channel)
     print(f"Showing previous images: {current_tl_file} (TL), {current_cb_file} (CB), {current_gen_file} (Gen)")
 
+def clear_spectra(_):
+    ax_spec_cb.clear()
+    
 # Calc SNR
 def snr(img, axis=None, ddof=0):
     img = np.asanyarray(img)
     m = img.mean(axis)
     sd = img.std(axis=axis, ddof=ddof)
     return np.where(sd == 0, 0, m/sd)
+
+def avrg_metrics():
+    total_rase = 0
+    total_SRE = 0
+    num_images = len(gen_files)
+    
+    for i in range(num_images):
+        # Load the current Cubert and generated images
+        current_cb_file = cubert_files[i]
+        current_gen_file = gen_files[i]
+        
+        cb_image = load_cb_image(current_cb_file)
+        gen_image = load_gen_image(current_gen_file)
+        
+        # Calculate RASE & SRE for the current image  
+        rase = RASE(cb_image, gen_image)
+        sre = SRE(gen_image, cb_image)
+        total_rase += rase.item()
+        total_SRE += sre.item()
+        
+    # Compute the average RASE over all images
+    average_rase = total_rase / num_images
+    average_SRE = total_SRE / num_images
+    return average_rase, average_SRE
+
+def RASE(cb_img, gen_img):
+    rmse = np.sqrt(np.mean((cb_img - gen_img)**2, axis=(1,2)))
+    rase = np.sqrt(np.mean(rmse**2)) * 100 / np.mean(cb_img)
+    return rase
+
+def SRE(I_pred, I_true):
+    # Calculate the SRE for each pixel (x, y) and wavelength (λ)
+    # Avoid division by zero by adding a small epsilon value to the denominator
+    epsilon = 1e-8
+    sre = ((I_pred - I_true) / (I_true + epsilon)) * 100 # Element-wise SRE in percentage
+    # Average over all (x, y, λ)
+    sre_avg = np.mean(sre, axis = (0,1,2))    
+    return sre_avg
+
 
 # Callback function for region selection
 def onselect(eclick, erelease):
@@ -249,12 +297,48 @@ def onselect(eclick, erelease):
     area_val_cb = np.mean(selected_area_cb, axis=(1, 2))
     area_val_gen = np.mean(selected_area_gen, axis=(1, 2))
 
-    # Store the normalized reflectance values and color for this selection
-    spectra_cb.append(area_val_cb)
-    spectra_gen.append(area_val_gen)
+    # Store the normalized reflectance values
+    spectra_cb = area_val_cb
+    spectra_gen = area_val_gen
 
-    plot_spectra(ax_spec_cb, spectra_cb, selected_area_cb)
-    plot_spectra(ax_spec_gen, spectra_gen, selected_area_gen)
+    # Plot the spectra comparison
+    plot_spectra_comparison(spectra_cb, spectra_gen)
+
+# Plot both ground truth (HS) and prediction (Gen) spectra for comparison
+def plot_spectra_comparison(spectrum_cb, spectrum_gen):
+    global fig, ax_spec_cb
+
+    # Clear the current plot
+    ax_spec_cb.clear()
+
+    # Plot the ground truth (HS) spectrum
+    ax_spec_cb.plot(wavelengths, spectrum_cb, label='Ground Truth', color='blue')
+
+    # Plot the generated image spectrum
+    ax_spec_cb.plot(wavelengths, spectrum_gen, label='Generated Image', color='red')
+
+    # Find the peak wavelength for the ground truth
+    peak_index_cb = np.argmax(spectrum_cb)
+    peak_wavelength_cb = wavelengths[peak_index_cb]
+    color_cb = get_color_from_wavelength(peak_wavelength_cb)
+
+    # Find the peak wavelength for the generated image
+    peak_index_gen = np.argmax(spectrum_gen)
+    peak_wavelength_gen = wavelengths[peak_index_gen]
+    color_gen = get_color_from_wavelength(peak_wavelength_gen)
+
+    # Annotate peak wavelengths
+    ax_spec_cb.text(0.95, 0.85, f'Peak (HS): {peak_wavelength_cb:.1f} nm\nColor: {color_cb}', transform=ax_spec_cb.transAxes, fontsize=10, color='blue', verticalalignment='top', horizontalalignment='right')
+    ax_spec_cb.text(0.95, 0.75, f'Peak (Gen): {peak_wavelength_gen:.1f} nm\nColor: {color_gen}', transform=ax_spec_cb.transAxes, fontsize=10, color='red', verticalalignment='top', horizontalalignment='right')
+
+    # Add labels and legend
+    ax_spec_cb.set_xlabel("Wavelength (nm)")
+    ax_spec_cb.set_ylabel("Intensity")
+    ax_spec_cb.set_title(f"Spectrum Comparison for Selected Area (Average SRE: {SRE(gen_image, cb_image):.3f})")
+    ax_spec_cb.legend()
+
+    # Redraw the figure
+    fig.canvas.draw_idle()
 
 # Plot all spectracs (works vor CB and Gen)
 def plot_spectra(ax_spec_cb, spectra_cb, selected_area_cb):
@@ -295,14 +379,26 @@ def main():
     global tl_image, cb_image, gen_image
     global colorbar_tl, colorbar_cb, colorbar_gen
     colorbar_tl, colorbar_cb, colorbar_gen = None, None, None
+    
+    gs = gridspec.GridSpec(2, 3, height_ratios=[1, 1])
 
     # Create the plot
-    fig, axs = plt.subplots(2, 3, figsize=(16, 10))
-    ((ax_tl, ax_cb, ax_gen), (ax_config, ax_spec_cb, ax_spec_gen)) = axs
+    fig = plt.figure(figsize=(16,10))
+
+    # Add 3 equally sized subplots on the top row
+    ax_tl = fig.add_subplot(gs[0, 0])
+    ax_cb = fig.add_subplot(gs[0, 1])
+    ax_gen = fig.add_subplot(gs[0, 2])
+
+    # Add 2 differently sized subplots on the bottom row
+    ax_config = fig.add_subplot(gs[1, 0])  # This spans column 0
+    ax_spec_cb = fig.add_subplot(gs[1, 1:3]) # This occupies column 1 -> 3
+
     fig.subplots_adjust(left=0.05, right=0.95, top=0.85, bottom=0.3, wspace=0.4)
 
+    avrg_RASE, avrg_SRE = avrg_metrics()
     # Set window title
-    fig.suptitle('Image Viewer')
+    fig.suptitle(f'Image Viewer (Average SRE for Test Dataset: {avrg_SRE:.3f})')
     fig.tight_layout(pad=5.0)
 
     # Initial plot
@@ -362,13 +458,17 @@ def main():
     )
     pol_slider.on_changed(change_pol)
 
-    ax_next_button = plt.axes([0.17, 0.35, 0.1, 0.05])
+    ax_next_button = plt.axes([0.135, 0.35, 0.1, 0.05])
     next_button = widgets.Button(ax_next_button, 'Next Image')
     next_button.on_clicked(next_image)
 
     ax_prev_button = plt.axes([0.03, 0.35, 0.1, 0.05])
     prev_button = widgets.Button(ax_prev_button, 'Previous Image')
     prev_button.on_clicked(prev_image)
+
+    ax_clear_button = plt.axes([0.24, 0.35, 0.1, 0.05])
+    clear_button = widgets.Button(ax_clear_button, 'Clear Spectra')
+    clear_button.on_clicked(clear_spectra)
 
     # Display the plot
     plt.show()
