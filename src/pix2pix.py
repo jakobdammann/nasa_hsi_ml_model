@@ -233,12 +233,12 @@ class Pix2Pix(pl.LightningModule):
         self.val_outputs.shape = (-1, len(stats))
 
         # Example images
-        if batch_idx == 0 and self.run != None and c.LOG_IMAGES == True:
-            plot = u.create_plot(generator_prediction, target, epoch=self.current_epoch, step=self.global_step)
+        if (batch_idx == 0 or c.LOG_ALL) and self.run != None and c.LOG_IMAGES == True:
+            plot = u.create_plot_with_spectra(generator_prediction, target, epoch=self.current_epoch, step=self.global_step)
             # save example to array
             self.run[f"examples/example_array"].append(value=plot, step=self.global_step)
             # save example for comparison
-            self.run[f"examples/example_epoch={self.current_epoch}_step={self.global_step}"].upload(plot)
+            self.run[f"examples/example_epoch={self.current_epoch}_step={self.global_step}_idx={batch_idx}"].upload(plot)
             self.last_epoch_logged = self.current_epoch
             plt.close(plot)
             print("Uploaded example plot")

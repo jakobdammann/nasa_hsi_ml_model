@@ -13,7 +13,7 @@ import os
 torch.backends.cudnn.benchmark = True
 
 folder = "test/imgs"
-n = 3
+n = 9
 
 def main():
     print(f"\nTesting... n={n}\n")

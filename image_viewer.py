@@ -8,11 +8,12 @@ from torchmetrics.image import RelativeAverageSpectralError
 from torchmetrics.functional.image import relative_average_spectral_error
 from torchmetrics.image import SpectralAngleMapper
 import torch
+import config as c
 
 # Folder paths for images
-thorlabs_image_folder = 'nasa_hsi_ml_model/test/imgs'
-cubert_image_folder = 'nasa_hsi_ml_model/test/imgs'
-gen_image_folder = 'nasa_hsi_ml_model/test/imgs'
+thorlabs_image_folder = 'test/imgs'
+cubert_image_folder = 'test/imgs'
+gen_image_folder = 'test/imgs'
 
 
 # List available files in each folder
@@ -28,7 +29,7 @@ current_cb_file = cubert_files[current_img_index%len(cubert_files)]
 current_gen_file = gen_files[current_img_index%len(gen_files)]
 
 current_channel = 53
-wavelengths = np.linspace(450, 870, 106)  # Assuming 106 channels from 450-850 nm
+wavelengths = np.linspace(450, 850, 106)  # Assuming 106 channels from 450-850 nm
 spectra_cb = []
 spectra_gen = []
 

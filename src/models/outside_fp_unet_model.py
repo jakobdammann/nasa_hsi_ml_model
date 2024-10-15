@@ -44,14 +44,14 @@ class Generator(nn.Module):
 
         self.bottleneck = nn.Sequential(nn.Conv2d(features * 8, features * 8, 4, 2, 1), nn.ReLU())
 
-        self.up1 = Block(features * 8, features * 8, down=False, act="relu", use_dropout=True, kernel=4, stride=2, pad=0)
+        self.up1 = Block(features * 8, features * 8, down=False, act="relu", use_dropout=True, kernel=4, stride=2, pad=1)
         self.up2 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, kernel=4, stride=2, pad=0)
-        self.up3 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, kernel=4, stride=2, pad=2)
-        self.up4 = Block(features * 8 + features * 8, features * 4, down=False, act="relu", use_dropout=False, kernel=4, stride=1, pad=2)
-        self.up5 = Block(features * 4 + features * 4, features * 4, down=False, act="relu", use_dropout=False, kernel=4, stride=2, pad=2)
-        self.up6 = Block(features * 4 + features * 2, features * 2, down=False, act="relu", use_dropout=False, kernel=4, stride=1, pad=2)
+        self.up3 = Block(features * 8 + features * 8, features * 8, down=False, act="relu", use_dropout=True, kernel=4, stride=2, pad=1)
+        self.up4 = Block(features * 8 + features * 8, features * 4, down=False, act="relu", use_dropout=False, kernel=4, stride=2, pad=2)
+        self.up5 = Block(features * 4 + features * 4, features * 4, down=False, act="relu", use_dropout=False, kernel=4, stride=1, pad=1)
+        self.up6 = Block(features * 4 + features * 2, features * 2, down=False, act="relu", use_dropout=False, kernel=4, stride=1, pad=1)
         self.final_up = nn.Sequential(
-            nn.ConvTranspose2d(features * 2 + features, out_channels, kernel_size=4, stride=1, padding=2),
+            nn.ConvTranspose2d(features * 2 + features, out_channels, kernel_size=3, stride=1, padding=1),
             nn.Tanh(),
         )
     
@@ -88,8 +88,8 @@ class Generator(nn.Module):
 
 def test():
     start=time.time()
-    x = torch.randn((1, 1, 1400, 1400))
-    model = Generator(in_channels=1, out_channels=106, features=64)
+    x = torch.randn((1, 1, 1000, 1000))
+    model = Generator(in_channels=1, out_channels=64, features=64)
     preds = model(x)
     end=time.time()
     print("\nShape of prediction:\n", preds.shape)

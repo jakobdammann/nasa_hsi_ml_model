@@ -43,7 +43,8 @@ def main():
               'Workers': c.NUM_WORKERS,
               'Load Model': c.LOAD_MODEL,
               'Save Model': c.SAVE_MODEL,
-              'Generator Model': c.GENERATOR_MODEL
+              'Generator Model': c.GENERATOR_MODEL,
+              'Dataset': c.COMMON_DIR
               }
     run['parameters'] = params
 
@@ -68,7 +69,7 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=c.BATCH_SIZE, shuffle=True, 
                               num_workers=c.NUM_WORKERS)
     val_dataset = Dataset(root_dir_x=c.VAL_DIR_X, root_dir_y=c.VAL_DIR_Y)
-    val_loader = DataLoader(val_dataset, batch_size=3, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False)
 
     run_id = run["sys/id"].fetch()
     print(f"\nTraining {run_id}...\n")
